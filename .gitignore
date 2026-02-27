@@ -1,0 +1,12 @@
+/*
+
+!.gitignore
+!README.md
+!/utils/
+/utils/__pycache__
+!/config/
+
+!requirements.txt
+!main.py
+
+**/__pycache__/

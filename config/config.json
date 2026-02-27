@@ -1,0 +1,11 @@
+{
+    "type": "train",
+    "size": 100,
+    "seed": null,
+    "N": 512,
+    "fmin": [1, 5e3],
+    "fmax": [10e3, 10e6],
+    "Nzp_max": 1,
+    "Nlp_max": 2,
+    "Nrp_max": 2
+}
