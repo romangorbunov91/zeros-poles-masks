@@ -1,7 +1,9 @@
 import numpy as np
 from typing import List
 
-def complex_to_mag_db_ph_deg(gain_complex):
+def complex_to_mag_db_ph_deg(
+    gain_complex: List[float]
+) -> List[float]:
     """
     Converts a complex-valued gain (e.g., frequency response) into its magnitude in decibels (dB)
     and phase in degrees.
@@ -45,15 +47,19 @@ def complex_to_mag_db_ph_deg(gain_complex):
 
     return [mag_db, ph_deg]
 
+def complex_to_vect(
+    gain_complex: List[float]
+) -> List[float]:
+    
+    return np.array(np.real(gain_complex)), np.array(np.imag(gain_complex))
+
 def transfer_function(
-  N: int,
-  freq_lim: List[float],
+  freq: List[float],
   zero_poles: int,
   poles: List[float],
   zeros: List[float]
 ) -> List[float]:
-    freq = np.linspace(freq_lim[0], freq_lim[-1], N)
-    
+        
     gain_complex = 1.0 / (1j*2*np.pi*freq)**zero_poles
     
     for pole in poles:
