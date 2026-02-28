@@ -1,6 +1,6 @@
 {
     "type": "train",
-    "size": 2,
+    "size": 100,
     "seed": null,
     "length": 512,
     "fmin": [1.0, 5e3],
