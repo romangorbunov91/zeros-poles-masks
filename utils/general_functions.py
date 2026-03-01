@@ -56,12 +56,12 @@ def transfer_function(
 ) -> List[float]:
         
     gain_complex = 1.0 / (1j*2*np.pi*freq)**zero_poles
-    
-    for pole in poles:
-        gain_complex *= 1.0 / (1.0 + 1j*freq/pole)
         
     for zero in zeros:
         gain_complex *= 1.0 + 1j*freq/zero
+    
+    for pole in poles:
+        gain_complex /= 1.0 + 1j*freq/pole
     
     return gain_complex
 
@@ -103,6 +103,7 @@ def generate_masks(masks, configer):
             "right_zeros": np.random.choice(
                 N, size=nrz, replace=False).tolist()
         }
+
     return masks
 
 
@@ -129,3 +130,11 @@ def generate_freq_zeros_poles(mask, configer):
     zeros.extend(-(freq_lim[0] + np.array(mask["right_zeros"]) * delta_f))
         
     return freq, zeros, poles
+
+
+def positions_to_mask(positions, total_bits):
+    """Convert list of bit positions to an integer mask."""
+    mask = [0] * total_bits
+    for pos in positions:
+        mask[pos] = 1
+    return mask
