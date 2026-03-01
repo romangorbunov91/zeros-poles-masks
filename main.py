@@ -16,14 +16,14 @@ if __name__ == "__main__":
         configer = json.load(f)
     
     # Create output directory.
-    output_data_dir = dataset_dir / configer["type"]
+    output_data_dir = dataset_dir / configer['split']
     output_data_dir.mkdir(parents=True, exist_ok=True)
     
     # Generate masks.
     masks = generate_masks(masks={}, configer=configer)
 
     # Save masks as json.
-    with open(dataset_dir / (configer["type"] + '_masks.json'), "w") as f:
+    with open(dataset_dir / (configer['split'] + '_masks.json'), "w") as f:
         json.dump(masks, f, indent=4)
     
     # Generate zeros-poles, then complete frequency response.
