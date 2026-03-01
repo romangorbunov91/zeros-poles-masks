@@ -1,5 +1,5 @@
 {
-    "type": "train",
+    "split": "train",
     "size": 100,
     "seed": null,
     "length": 512,
