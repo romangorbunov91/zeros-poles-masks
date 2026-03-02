@@ -2,6 +2,16 @@ import numpy as np
 import itertools
 from typing import List
 
+def real_imag_to_mag_db_ph_deg(real, imag):
+    
+    gain_complex = real + 1j*imag
+    
+    mag_db = 20*np.log10(np.abs(gain_complex))
+    ph_deg = np.rad2deg(np.unwrap(np.angle(gain_complex)))
+
+    return [mag_db, ph_deg]
+
+
 def complex_to_mag_db_ph_deg(
     gain_complex: List[float]
 ) -> List[float]:
@@ -46,7 +56,8 @@ def complex_to_mag_db_ph_deg(
     mag_db = 20*np.log10(np.abs(gain_complex))
     ph_deg = np.rad2deg(np.unwrap(np.angle(gain_complex)))
 
-    return [mag_db, ph_deg]
+    return mag_db, ph_deg
+
 
 def transfer_function(
   freq: List[float],
@@ -137,4 +148,5 @@ def positions_to_mask(positions, total_bits):
     mask = [0] * total_bits
     for pos in positions:
         mask[pos] = 1
+    
     return mask
