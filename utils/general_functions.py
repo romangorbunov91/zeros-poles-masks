@@ -2,62 +2,6 @@ import numpy as np
 import itertools
 from typing import List
 
-def real_imag_to_mag_db_ph_deg(real, imag):
-    
-    gain_complex = real + 1j*imag
-    
-    mag_db = 20*np.log10(np.abs(gain_complex))
-    ph_deg = np.rad2deg(np.unwrap(np.angle(gain_complex)))
-
-    return [mag_db, ph_deg]
-
-
-def complex_to_mag_db_ph_deg(
-    gain_complex: List[float]
-) -> List[float]:
-    """
-    Converts a complex-valued gain (e.g., frequency response) into its magnitude in decibels (dB)
-    and phase in degrees.
-
-    The magnitude is computed as 20·log₁₀(|gain_complex|), which is standard for voltage or field
-    quantities. The phase is computed using the unwrapped angle of the complex input to avoid
-    discontinuities (±180° jumps), then converted from radians to degrees.
-
-    Parameters
-    ----------
-    gain_complex : array-like or scalar of complex numbers
-        Complex gain values (e.g., from a transfer function or FFT output).
-
-    Returns
-    -------
-    list
-        A list containing two elements:
-        - mag_db : ndarray or float
-            Magnitude in decibels (dB).
-        - ph_deg : ndarray or float
-            Unwrapped phase in degrees.
-
-    Notes
-    -----
-    - Uses `np.unwrap` to ensure smooth phase transitions—important for plotting or further analysis.
-    - Input can be a scalar complex number or an array (e.g., frequency response vector).
-    - Assumes `np` (NumPy) is imported.
-
-    Example
-    -------
-    >>> import numpy as np
-    >>> H = 1 + 1j
-    >>> mag_db, ph_deg = complex_to_mag_db_ph_deg(H)
-    >>> print(f"{mag_db:.2f} dB, {ph_deg:.2f}°")
-    3.01 dB, 45.00°
-    """
-    
-    # Magnitude and angle.
-    mag_db = 20*np.log10(np.abs(gain_complex))
-    ph_deg = np.rad2deg(np.unwrap(np.angle(gain_complex)))
-
-    return mag_db, ph_deg
-
 
 def transfer_function(
   freq: List[float],
@@ -141,12 +85,3 @@ def generate_freq_zeros_poles(mask, configer):
     zeros.extend(-(freq_lim[0] + np.array(mask["right_zeros"]) * delta_f))
         
     return freq, zeros, poles
-
-
-def positions_to_mask(positions, total_bits):
-    """Convert list of bit positions to an integer mask."""
-    mask = [0] * total_bits
-    for pos in positions:
-        mask[pos] = 1
-    
-    return mask
