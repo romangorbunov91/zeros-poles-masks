@@ -6,7 +6,14 @@ import torch
 from torch.utils.data import Dataset
 from typing import Union, Tuple, List, Optional
 
-from utils.general_functions import positions_to_mask
+def positions_to_mask(positions, total_bits):
+    """Convert list of bit positions to an integer mask."""
+    mask = [0] * total_bits
+    for pos in positions:
+        mask[pos] = 1
+    
+    return mask
+
 
 class ZerosPolesDataset(Dataset):
     def __init__(
