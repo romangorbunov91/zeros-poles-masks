@@ -1,17 +1,28 @@
 import numpy as np
+import torch
 from pathlib import Path
 from matplotlib import pyplot as plt
-from typing import Union, Any, Dict, Tuple, List, Optional
+from typing import Union, Any, Dict, Tuple, List, Optional, Sequence
 
 from utils.data_convert_functions import real_imag_to_mag_db_ph_deg
 
 def plot_frequency_responses(
-    dataset_to_plot: Any,
+    dataset_to_plot: Sequence[Tuple[torch.Tensor, torch.Tensor, np.ndarray]],
     samples_list: List[Any],
     N_plot_samples: int,
     plot_config: Dict[str, Any],
     save_path: Optional[Union[str, Path]] = None
     ) -> None:
+    """
+    Plots frequency responses for a subset of samples.
+    
+    Args:
+        dataset_to_plot: Sequence of (data_tensor, mask_tensor, freq_array).
+        samples_list: List of names/IDs for the samples.
+        N_plot_samples: Max number of samples to plot.
+        plot_config: Dictionary containing plotting settings.
+        save_path: Optional path to save the figure.
+    """
     
     # Limit samples to avoid massive figures.
     N_samples_to_plot = min(
@@ -25,7 +36,7 @@ def plot_frequency_responses(
         return
 
     # 4 plots per sample: 2 columns, 2 rows.
-    _, axs = plt.subplots(
+    fig, axs = plt.subplots(
         nrows=2*N_plot_samples,
         ncols=2,
         figsize=(plot_config['fig_width'],
@@ -103,3 +114,4 @@ def plot_frequency_responses(
         plt.savefig(save_path, bbox_inches='tight')
     
     plt.show()
+    plt.close(fig)
