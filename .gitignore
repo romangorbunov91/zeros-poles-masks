@@ -5,6 +5,7 @@
 !/utils/
 /utils/__pycache__
 !/config/
+!/img/
 
 !requirements.txt
 !main.py
