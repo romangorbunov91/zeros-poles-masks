@@ -12,6 +12,11 @@ $$\begin{equation}
 - ${\omega_p}$ - полюса передаточной функции в количестве ${N}$,
 - ${K}$ - количество интеграторов.
 
+В [general_functions.py](utils/general_functions.py) созданы функции:
+- [transfer_function](utils/general_functions.py) - вычисление массива комплексного коэффициента передачи,
+- [generate_masks](utils/general_functions.py) - генерация координат нулей и полюсов,
+- [generate_freq_zeros_poles](utils/general_functions.py) - 
+
 ## Конфигурирование
 
 Входные параметры генерации задаются в [config.json](config/config.json):
@@ -62,7 +67,12 @@ project/
 - Gain (Real),
 - Gain (Imag).
 
-Маски агрегированы в json-файлы - по одному файлу на каждый `split`: `train`, `val`, `test`.
+Маски агрегированы в json-файлы - по одному файлу на каждый `split`: `train`, `val`, `test`. В файлах каждому элементу датасета приведены соответствующие:
+- "zero_poles": `int` - количество интеграторов,
+- "left_poles": `List[int]` - координаты полюсов левых,
+- "right_poles": `List[int]` - координаты полюсов правых,
+- "left_zeros": `List[int]` - координаты нулей левых,
+- "right_zeros": `List[int]` - координаты нулей правых.
 
 ## Запуск на генерацию
 
@@ -79,7 +89,12 @@ python src/main.py
 - `__len__`: возврат количества примеров в датасете;
 - `__getitem__`: загрузка и возврат одного примера в виде `(data_tensor, masks_tensor, freq)`.
 
-Пример использования даталоудера представлен в [debug_notebook.ipynb](debug_notebook.ipynb).
+Каждый элемент представлен следующими объектами:
+- `data_tensor` - тензор размера `[2, length]` - канал `real` и канал `imag`,
+- `masks_tensor` - тензор размера `[4, length]` - по своей маске для полюсов левых, полюсов правых, нулей левых, нулей правых. Каждая маска формируется функцией [positions_to_mask](utils/ZerosPolesDataset.py) - преобразование координат нулей/полюсов в маски - массивы длины `length`, содержащие `1` в координатах нулей/полюсов и `0` в остальных,
+- `freq` - numpy-массив частот размера `(length,)`.
+
+Пример использования даталоудера приведен в [debug_notebook.ipynb](debug_notebook.ipynb).
 
 <p align="center" width="100%">
   <img src="./readme_img/dataset_samples.png"
