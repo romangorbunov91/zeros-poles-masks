@@ -66,7 +66,7 @@ project/
 
 ## Запуск на генерацию
 
-Запуск генерации датасета осуществляется через [main.py](utils/main.py). При необходимости сгенерировать все 3 набора `split`: `str` - `train`, `val`, `test` необходимо последовательно задать в [config.json](config/config.json) соответствующие `split` и `size` и каждый раз выполнять
+Запуск генерации датасета осуществляется через [main.py](main.py). При необходимости сгенерировать все 3 набора `split`: `str` - `train`, `val`, `test` необходимо последовательно задать в [config.json](config/config.json) соответствующие `split` и `size` и каждый раз выполнять
 
 ```
 python src/main.py
@@ -74,7 +74,10 @@ python src/main.py
 
 ## Даталоудер
 
- [ZerosPolesDataset.py](utils/ZerosPolesDataset.py).
+Создан датакласс [ZerosPolesDataset.py](utils/ZerosPolesDataset.py), наследующий от `torch.utils.data.Dataset` следующие методы:
+- `__init__`: инициализация путей к данным и маскам;
+- `__len__`: возврат количества примеров в датасете;
+- `__getitem__`: загрузка и возврат одного примера в виде `(data_tensor, masks_tensor, freq)`.
 
 Пример использования даталоудера представлен в [debug_notebook.ipynb](debug_notebook.ipynb).
 
