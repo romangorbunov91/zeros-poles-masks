@@ -41,6 +41,14 @@ $$\begin{equation}
 
 где `xxx` - порядковый номер из `size`.
 
+Например, `1zp_2lp_0rp_1lz_1rz_001.csv`:
+- `zero_poles`: 1,
+- `left_poles`: 2,
+- `right_poles`: 0,
+- `left_zeros`: 1,
+- `right_zeros`: 1.
+- `001` - один из `size`-примеров такой конфигурации.
+
 ```
 project/
 ├── dataset/
@@ -68,11 +76,11 @@ project/
 - Gain (Imag).
 
 Маски агрегированы в json-файлы - по одному файлу на каждый `split`: `train`, `val`, `test`. В файлах каждому элементу датасета приведены соответствующие:
-- "zero_poles": `int` - количество интеграторов,
-- "left_poles": `List[int]` - координаты полюсов левых,
-- "right_poles": `List[int]` - координаты полюсов правых,
-- "left_zeros": `List[int]` - координаты нулей левых,
-- "right_zeros": `List[int]` - координаты нулей правых.
+- `zero_poles`: `int` - количество интеграторов,
+- `left_poles`: `List[int]` - координаты полюсов левых,
+- `right_poles`: `List[int]` - координаты полюсов правых,
+- `left_zeros`: `List[int]` - координаты нулей левых,
+- `right_zeros`: `List[int]` - координаты нулей правых.
 
 ## Запуск на генерацию
 
