@@ -12,10 +12,10 @@ $$\begin{equation}
 - ${\omega_p}$ - полюса передаточной функции в количестве ${N}$,
 - ${K}$ - количество интеграторов.
 
-В [general_functions.py](utils/general_functions.py) созданы функции:
+В [general_functions.py](utils/general_functions.py) представлены функции:
 - [transfer_function](utils/general_functions.py) - вычисление массива комплексного коэффициента передачи,
-- [generate_masks](utils/general_functions.py) - генерация координат нулей и полюсов,
-- [generate_freq_zeros_poles](utils/general_functions.py) - 
+- [generate_masks](utils/general_functions.py) - генерация int-координат нулей и полюсов,
+- [generate_freq_zeros_poles](utils/general_functions.py) - преобразование int-координат нулей и полюсов в частоты нулей/полюсов для использования в [transfer_function](utils/general_functions.py).
 
 ## Конфигурирование
 
