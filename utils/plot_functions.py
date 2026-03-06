@@ -47,13 +47,14 @@ def plot_frequency_responses(
 
     for k in range(N_plot_samples):
         try:
-            data_tensor, masks_tensor, freq = dataset_to_plot[k]
+            data_tensor, masks_tensor, freq_tensor = dataset_to_plot[k]
         except IndexError:
             break
             
         # Detach from GPU and convert to numpy.
         data = data_tensor.detach().cpu().numpy()
         masks = masks_tensor.detach().cpu().numpy()
+        freq = freq_tensor.detach().cpu().numpy()
         
         data_mag_db, data_ph_deg = real_imag_to_mag_db_ph_deg(
             real=data[:, 0],
