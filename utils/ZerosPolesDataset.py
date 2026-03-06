@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
+import torch.nn.functional as F
 from typing import Union, Tuple, List, Optional
 
 def positions_to_mask(positions, total_bits):
@@ -20,7 +21,12 @@ class ZerosPolesDataset(Dataset):
         self,
         dataset_dir: Union[str, Path],
         split: str,
-        samples: Optional[List] = None
+        samples: Optional[List] = None,
+        transforms_flag: bool = False,
+        gain: List[float] = [1.0, 1.0],
+        noise_std: List[float] = [0.0, 0.0],
+        crop_size: float = 0.0,
+        #delay: List[float] = [0.0, 0.0]
     ):
         
         super().__init__()
@@ -38,8 +44,59 @@ class ZerosPolesDataset(Dataset):
         else:
             self.samples = samples
 
+        self.transforms_flag = transforms_flag
+        self.gain = gain
+        self.noise_std = noise_std
+        self.crop_size = crop_size
+        
     def __len__(self) -> int:
         return len(self.samples)
+
+    def _augmentations_(self, data_tensor, masks_tensor):
+        
+        # 1. Crop-Resize Augmentation
+        if self.crop_size > 0.0:
+            
+            N = data_tensor.shape[-1]          
+            
+            # Determine random crop length.
+            crop_ratio = torch.rand(1).item() * self.crop_size + (1.0 - self.crop_size)            
+            N_crop = int(crop_ratio * N)
+            
+            # Determine random start index.
+            if N_crop < N:
+                start_idx = torch.randint(0, N - N_crop + 1, (1,)).item()
+            else:
+                start_idx = 0
+            
+            # Slice tensors (keep dimensions for interpolation).
+            data_crop = data_tensor[:, start_idx:(start_idx + N_crop)]
+            masks_crop = masks_tensor[:, start_idx:(start_idx + N_crop)]
+            
+            # Add batch dimension since torch.nn.functional.interpolate expects (Batch, Channel, Length).
+            data_crop = data_crop.unsqueeze(0)
+            masks_crop = masks_crop.unsqueeze(0)
+            
+            data_tensor = F.interpolate(data_crop, size=N, mode='linear', align_corners=False)
+            masks_tensor = F.interpolate(masks_crop, size=N, mode='nearest')
+            
+            # Remove batch back.
+            data_tensor = data_tensor.squeeze(0)
+            masks_tensor = masks_tensor.squeeze(0)
+        
+        freq_tensor = data_tensor[0 ,:]
+        data_tensor = data_tensor[1:,:]
+        
+        # 2. Random Noise Augmentation (Data only).
+        if max(self.noise_std) > 0.0:
+            std = self.noise_std[0] + torch.rand(1).item() * (self.noise_std[1] - self.noise_std[0])
+            noise = torch.randn_like(data_tensor) * std
+            data_tensor += noise
+        
+        # 3. Random gain (Data only).
+        data_tensor *= (self.gain[0] + torch.rand(1).item() * (self.gain[1] - self.gain[0]))
+                    
+        return data_tensor, masks_tensor, freq_tensor
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
@@ -51,18 +108,17 @@ class ZerosPolesDataset(Dataset):
         
         data_T = np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)
         data = data_T.T
+        data_tensor = torch.tensor(data, dtype=torch.float32)
         
         mask_dict = self.masks[sample_id]
-        
         masks_list = []
         for key, positions in mask_dict.items():
             if key == 'zero_poles':
                 continue
             masks_list.append(positions_to_mask(positions, total_bits=data.shape[-1]))
-        
-        # Outputs.
-        freq_tensor = torch.tensor(data[0,:], dtype=torch.float32)
-        data_tensor = torch.tensor(data[1:,:], dtype=torch.float32)
         masks_tensor = torch.tensor(np.vstack(masks_list), dtype=torch.float32)
+        
+        if self.transforms_flag:
+            data_tensor, masks_tensor, freq_tensor = self._augmentations_(data_tensor, masks_tensor)
 
         return data_tensor, masks_tensor, freq_tensor
