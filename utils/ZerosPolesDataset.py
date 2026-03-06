@@ -49,19 +49,20 @@ class ZerosPolesDataset(Dataset):
         if not sample_path.exists():
             raise FileNotFoundError(f"File not found: {sample_path}")
         
-        data = np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)
-
+        data_T = np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)
+        data = data_T.T
+        
         mask_dict = self.masks[sample_id]
         
         masks_list = []
         for key, positions in mask_dict.items():
             if key == 'zero_poles':
                 continue
-            masks_list.append(positions_to_mask(positions, total_bits=len(data)))
+            masks_list.append(positions_to_mask(positions, total_bits=data.shape[-1]))
         
         # Outputs.
-        data_tensor = torch.tensor(data[:,1:], dtype=torch.float32)
+        freq_tensor = torch.tensor(data[0,:], dtype=torch.float32)
+        data_tensor = torch.tensor(data[1:,:], dtype=torch.float32)
         masks_tensor = torch.tensor(np.vstack(masks_list), dtype=torch.float32)
-        freq_tensor = torch.tensor(data[:,0], dtype=torch.float32)
 
         return data_tensor, masks_tensor, freq_tensor

@@ -57,8 +57,8 @@ def plot_frequency_responses(
         freq = freq_tensor.detach().cpu().numpy()
         
         data_mag_db, data_ph_deg = real_imag_to_mag_db_ph_deg(
-            real=data[:, 0],
-            imag=data[:, 1]
+            real=data[0,:],
+            imag=data[1,:]
             )
         
         x_samples = np.arange(freq.shape[0])
@@ -68,8 +68,8 @@ def plot_frequency_responses(
             'samples': x_samples,
             'mag_db': data_mag_db,
             'ph_deg': data_ph_deg,
-            'real': data[:, 0],
-            'imag': data[:, 1]
+            'real': data[0,:],
+            'imag': data[1,:]
         }
 
         # Plot 4 subplots for a sample.
