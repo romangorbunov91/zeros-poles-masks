@@ -41,7 +41,7 @@ class ZerosPolesDataset(Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
         sample_id = self.samples[idx]
         sample_path = self.dataset_path / f"{sample_id}.csv"
@@ -62,6 +62,6 @@ class ZerosPolesDataset(Dataset):
         # Outputs.
         data_tensor = torch.tensor(data[:,1:], dtype=torch.float32)
         masks_tensor = torch.tensor(np.vstack(masks_list), dtype=torch.float32)
-        freq = data[:,0]
+        freq_tensor = torch.tensor(data[:,0], dtype=torch.float32)
 
-        return data_tensor, masks_tensor, freq
+        return data_tensor, masks_tensor, freq_tensor
