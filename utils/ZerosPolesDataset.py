@@ -56,7 +56,7 @@ class ZerosPolesDataset(Dataset):
 
     def _augmentations_(self, data_tensor, masks_tensor):
         
-        # 1. Crop-Resize Augmentation
+        # 1. Crop-Resize Augmentation: both data and masks.
         if max(self.crop_size) > 0.0:
             
             N = data_tensor.shape[-1]          
