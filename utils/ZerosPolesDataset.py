@@ -84,7 +84,7 @@ class ZerosPolesDataset(Dataset):
             ch_idxs, idxs = torch.where(masks_crop > 0.5)
             if idxs.numel() > 0:
                 # Map coordinates from N_crop space to N space.
-                new_idxs = (idxs.float() * N / N_crop).round().long()
+                new_idxs = (idxs.float() * N / N_crop).round().long()#.clamp(0, N-1)
                 masks_tensor_remaped[ch_idxs, new_idxs] = 1
                 
             masks_tensor = masks_tensor_remaped
@@ -114,12 +114,33 @@ class ZerosPolesDataset(Dataset):
         # 3. Random Noise Augmentation (Data only).
         if max(self.noise_level) > 0.0:
             noise = torch.randn_like(data_tensor)
+            
             filtered_noise = torch.zeros_like(noise)
             for n in range(1, data_tensor.shape[-1]):
                 filtered_noise[:, n] = self.noise_alfa * noise[:, n] + (1 - self.noise_alfa) * filtered_noise[:, n - 1]
-                    
             data_tensor += filtered_noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
-        
+
+            '''
+            # Simple 1D average pooling as approximation
+            kernel_size = max(1, int(1 / (1 - self.noise_alfa)))
+            padding = kernel_size // 2
+            
+            filtered_noise = F.avg_pool1d(
+                noise.unsqueeze(0), 
+                kernel_size=kernel_size, 
+                padding=padding, 
+                stride=1
+            ).squeeze(0)
+
+            if filtered_noise.shape[-1] != data_tensor.shape[-1]:
+                filtered_noise = filtered_noise[..., :data_tensor.shape[-1]]
+            
+            noise_scale = data_tensor.std(dim=-1, keepdim=True) * (
+                self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0])
+            )
+            data_tensor += filtered_noise * noise_scale
+            '''     
+
         # 4. Random gain (Data only).
         data_tensor *= (self.gain[0] + torch.rand(1).item() * (self.gain[1] - self.gain[0]))
                     
