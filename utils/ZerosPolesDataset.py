@@ -24,10 +24,10 @@ class ZerosPolesDataset(Dataset):
         samples: Optional[List] = None,
         transforms_flag: bool = False,
         crop_size: float = 0.0,
+        time_delay: List[float] = [0.0, 0.0],
         noise_level: List[float] = [0.0, 0.0],
         noise_alfa: float = 0.6,
-        gain: List[float] = [1.0, 1.0],
-        #delay: List[float] = [0.0, 0.0]
+        gain: List[float] = [1.0, 1.0]
     ):
         
         super().__init__()
@@ -47,6 +47,7 @@ class ZerosPolesDataset(Dataset):
 
         self.transforms_flag = transforms_flag
         self.crop_size = crop_size
+        self.time_delay = time_delay
         self.noise_level = noise_level
         self.noise_alfa = noise_alfa
         self.gain = gain
@@ -90,8 +91,27 @@ class ZerosPolesDataset(Dataset):
 
         freq_tensor = data_tensor[0 ,:]
         data_tensor = data_tensor[1:,:]
-        
-        # 2. Random Noise Augmentation (Data only).
+
+        # 2. Random time-delay (Data only).
+        if max(self.time_delay) > 0.0:
+            omega_delay = -2*np.pi * freq_tensor * (self.time_delay[0] + torch.rand(1).item() * (self.time_delay[1] - self.time_delay[0]))
+
+            # Precompute trigonometric values
+            cos_theta_tensor = torch.cos(omega_delay)
+            sin_theta_tensor = torch.sin(omega_delay)
+
+            # Extract real and imaginary components.
+            real_tensor = data_tensor[0,:]
+            imag_tensor = data_tensor[1,:]
+
+            # Complex rotation.
+            delay_real_tensor = real_tensor * cos_theta_tensor - imag_tensor * sin_theta_tensor
+            delay_imag_tensor = real_tensor * sin_theta_tensor + imag_tensor * cos_theta_tensor
+
+            # Reconstruct phase-shifted tensor.
+            data_tensor = torch.stack([delay_real_tensor, delay_imag_tensor], dim=0)
+
+        # 3. Random Noise Augmentation (Data only).
         if max(self.noise_level) > 0.0:
             noise = torch.randn_like(data_tensor)
             filtered_noise = torch.zeros_like(noise)
@@ -100,7 +120,7 @@ class ZerosPolesDataset(Dataset):
                     
             data_tensor += filtered_noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
         
-        # 3. Random gain (Data only).
+        # 4. Random gain (Data only).
         data_tensor *= (self.gain[0] + torch.rand(1).item() * (self.gain[1] - self.gain[0]))
                     
         return data_tensor, masks_tensor, freq_tensor
@@ -113,17 +133,16 @@ class ZerosPolesDataset(Dataset):
         if not sample_path.exists():
             raise FileNotFoundError(f"File not found: {sample_path}")
         
-        data_T = np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)
-        data = data_T.T
-        data_tensor = torch.tensor(data, dtype=torch.float32)
+        data_np = np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)
+        data_tensor = torch.from_numpy(data_np.T).float()
         
         mask_dict = self.masks[sample_id]
         masks_list = []
         for key, positions in mask_dict.items():
             if key == 'zero_poles':
                 continue
-            masks_list.append(positions_to_mask(positions, total_bits=data.shape[-1]))
-        masks_tensor = torch.tensor(np.vstack(masks_list), dtype=torch.float32)
+            masks_list.append(positions_to_mask(positions, total_bits=data_tensor.shape[-1]))
+        masks_tensor = torch.from_numpy(np.vstack(masks_list)).float()
         
         if self.transforms_flag:
             data_tensor, masks_tensor, freq_tensor = self._augmentations_(data_tensor, masks_tensor)
