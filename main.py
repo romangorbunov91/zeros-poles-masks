@@ -2,7 +2,7 @@ import numpy as np
 import json
 from pathlib import Path
 
-from utils.general_functions import transfer_function, generate_masks, generate_freq_zeros_poles
+from utils.general_functions import transfer_function, generate_masks, calculate_freq_zeros_poles
 
 config_dir = Path("./config/")
 dataset_dir = Path('./dataset/')
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     
     # Generate zeros-poles, then complete frequency response.
     for key, mask in masks.items():
-        freq, zeros, poles = generate_freq_zeros_poles(mask, configer)
+        freq, zeros, poles = calculate_freq_zeros_poles(mask, configer)
         
         gain_complex = transfer_function(
             freq=freq,
