@@ -62,7 +62,7 @@ def generate_masks(masks, configer):
     return masks
 
 
-def generate_freq_zeros_poles(mask, configer):
+def calculate_freq_zeros_poles(mask, configer):
 
     N = configer["length"]
     F_MIN_RANGE = configer["fmin"]
