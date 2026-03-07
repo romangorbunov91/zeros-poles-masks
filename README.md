@@ -104,8 +104,19 @@ python src/main.py
 
 Пример использования даталоудера приведен в [debug_notebook.ipynb](debug_notebook.ipynb).
 
+## Приложения
+### Визуализация примеров (нет аугментации)
+
 <p align="center" width="100%">
   <img src="./readme_img/dataset_samples.png"
+  style="background-color: white; padding: 0;
+  width="100%" />
+</p>
+
+### Визуализация примеров (аугментация)
+
+<p align="center" width="100%">
+  <img src="./readme_img/augmented_dataset_samples.png"
   style="background-color: white; padding: 0;
   width="100%" />
 </p>
