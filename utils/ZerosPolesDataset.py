@@ -66,10 +66,9 @@ class ZerosPolesDataset(Dataset):
             N_crop = int(crop_ratio * N)
             
             # Determine random start index.
+            start_idx = 0
             if N_crop < N:
                 start_idx = torch.randint(0, N - N_crop + 1, (1,)).item()
-            else:
-                start_idx = 0
             
             # Slice tensors (keep dimensions for interpolation).
             data_crop = data_tensor[:, start_idx:(start_idx + N_crop)]
@@ -77,15 +76,18 @@ class ZerosPolesDataset(Dataset):
             
             # Add batch dimension since torch.nn.functional.interpolate expects (Batch, Channel, Length).
             data_crop = data_crop.unsqueeze(0)
-            masks_crop = masks_crop.unsqueeze(0)
-            
             data_tensor = F.interpolate(data_crop, size=N, mode='linear', align_corners=False)
-            masks_tensor = F.interpolate(masks_crop, size=N, mode='nearest')
-            
-            # Remove batch back.
-            data_tensor = data_tensor.squeeze(0)
-            masks_tensor = masks_tensor.squeeze(0)
-        
+            data_tensor = data_tensor.squeeze(0) # Remove back.
+
+            masks_tensor_remaped = torch.zeros_like(masks_tensor)
+            ch_idxs, idxs = torch.where(masks_crop > 0.5)
+            if idxs.numel() > 0:
+                # Map coordinates from N_crop space to N space.
+                new_idxs = (idxs.float() * N / N_crop).round().long()
+                masks_tensor_remaped[ch_idxs, new_idxs] = 1
+                
+            masks_tensor = masks_tensor_remaped
+
         freq_tensor = data_tensor[0 ,:]
         data_tensor = data_tensor[1:,:]
         
