@@ -23,7 +23,7 @@ class ZerosPolesDataset(Dataset):
         split: str,
         samples: Optional[List] = None,
         transforms_flag: bool = False,
-        crop_size: float = 0.0,
+        crop_ratio: List[float] = [1.0, 1.0],
         time_delay: List[float] = [0.0, 0.0],
         noise_level: List[float] = [0.0, 0.0],
         noise_filter: float = 0.6,
@@ -46,7 +46,7 @@ class ZerosPolesDataset(Dataset):
             self.samples = samples
 
         self.transforms_flag = transforms_flag
-        self.crop_size = crop_size
+        self.crop_ratio = crop_ratio
         self.time_delay = time_delay
         self.noise_level = noise_level
         self.noise_filter = noise_filter
@@ -56,16 +56,15 @@ class ZerosPolesDataset(Dataset):
         return len(self.samples)
 
     def _augmentations_(self, data_tensor, masks_tensor):
-        
+      
         # 1. Crop-Resize Augmentation: both data and masks.
-        if max(self.crop_size) > 0.0:
-            
+        if min(self.crop_ratio) < 1.0:
+
             N = data_tensor.shape[-1]          
             
             # Determine random crop length.
-            crop_ratio = 1 - (self.crop_size[0] + torch.rand(1).item() * (self.crop_size[1] - self.crop_size[0]))           
-            N_crop = int(crop_ratio * N)
-            
+            N_crop = int((self.crop_ratio[0] + torch.rand(1).item() * (self.crop_ratio[1] - self.crop_ratio[0])) * N)
+
             # Determine random start index.
             start_idx = 0
             if N_crop < N:
@@ -76,10 +75,9 @@ class ZerosPolesDataset(Dataset):
             masks_crop = masks_tensor[:, start_idx:(start_idx + N_crop)]
             
             # Add batch dimension since torch.nn.functional.interpolate expects (Batch, Channel, Length).
-            data_crop = data_crop.unsqueeze(0)
-            data_tensor = F.interpolate(data_crop, size=N, mode='linear', align_corners=False)
-            data_tensor = data_tensor.squeeze(0) # Remove back.
-
+            # Then remove back.
+            data_tensor = F.interpolate(data_crop.unsqueeze(0), size=N, mode='linear', align_corners=False).squeeze(0)
+            
             masks_tensor_remaped = torch.zeros_like(masks_tensor)
             ch_idxs, idxs = torch.where(masks_crop > 0.5)
             if idxs.numel() > 0:
@@ -91,7 +89,6 @@ class ZerosPolesDataset(Dataset):
 
         freq_tensor = data_tensor[0 ,:]
         data_tensor = data_tensor[1:,:]
-
         # 2. Random time-delay (Data only).
         if max(self.time_delay) > 0.0:
             omega_delay = -2*np.pi * freq_tensor * (self.time_delay[0] + torch.rand(1).item() * (self.time_delay[1] - self.time_delay[0]))
