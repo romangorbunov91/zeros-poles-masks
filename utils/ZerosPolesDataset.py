@@ -26,7 +26,7 @@ class ZerosPolesDataset(Dataset):
         crop_size: float = 0.0,
         time_delay: List[float] = [0.0, 0.0],
         noise_level: List[float] = [0.0, 0.0],
-        noise_alfa: float = 0.6,
+        noise_filter: float = 0.6,
         gain: List[float] = [1.0, 1.0]
     ):
         
@@ -49,7 +49,7 @@ class ZerosPolesDataset(Dataset):
         self.crop_size = crop_size
         self.time_delay = time_delay
         self.noise_level = noise_level
-        self.noise_alfa = noise_alfa
+        self.noise_filter = noise_filter
         self.gain = gain
         
     def __len__(self) -> int:
@@ -117,7 +117,7 @@ class ZerosPolesDataset(Dataset):
             
             filtered_noise = torch.zeros_like(noise)
             for n in range(1, data_tensor.shape[-1]):
-                filtered_noise[:, n] = self.noise_alfa * noise[:, n] + (1 - self.noise_alfa) * filtered_noise[:, n - 1]
+                filtered_noise[:, n] = self.noise_filter * noise[:, n] + (1 - self.noise_filter) * filtered_noise[:, n - 1]
             data_tensor += filtered_noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
 
             '''
