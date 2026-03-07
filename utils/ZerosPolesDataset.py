@@ -23,9 +23,10 @@ class ZerosPolesDataset(Dataset):
         split: str,
         samples: Optional[List] = None,
         transforms_flag: bool = False,
-        gain: List[float] = [1.0, 1.0],
-        noise_std: List[float] = [0.0, 0.0],
         crop_size: float = 0.0,
+        noise_level: List[float] = [0.0, 0.0],
+        noise_alfa: float = 0.6,
+        gain: List[float] = [1.0, 1.0],
         #delay: List[float] = [0.0, 0.0]
     ):
         
@@ -45,9 +46,10 @@ class ZerosPolesDataset(Dataset):
             self.samples = samples
 
         self.transforms_flag = transforms_flag
-        self.gain = gain
-        self.noise_std = noise_std
         self.crop_size = crop_size
+        self.noise_level = noise_level
+        self.noise_alfa = noise_alfa
+        self.gain = gain
         
     def __len__(self) -> int:
         return len(self.samples)
@@ -55,12 +57,12 @@ class ZerosPolesDataset(Dataset):
     def _augmentations_(self, data_tensor, masks_tensor):
         
         # 1. Crop-Resize Augmentation
-        if self.crop_size > 0.0:
+        if max(self.crop_size) > 0.0:
             
             N = data_tensor.shape[-1]          
             
             # Determine random crop length.
-            crop_ratio = torch.rand(1).item() * self.crop_size + (1.0 - self.crop_size)            
+            crop_ratio = 1 - (self.crop_size[0] + torch.rand(1).item() * (self.crop_size[1] - self.crop_size[0]))           
             N_crop = int(crop_ratio * N)
             
             # Determine random start index.
@@ -88,10 +90,13 @@ class ZerosPolesDataset(Dataset):
         data_tensor = data_tensor[1:,:]
         
         # 2. Random Noise Augmentation (Data only).
-        if max(self.noise_std) > 0.0:
-            std = self.noise_std[0] + torch.rand(1).item() * (self.noise_std[1] - self.noise_std[0])
-            noise = torch.randn_like(data_tensor) * std
-            data_tensor += noise
+        if max(self.noise_level) > 0.0:
+            noise = torch.randn_like(data_tensor)
+            filtered_noise = torch.zeros_like(noise)
+            for n in range(1, data_tensor.shape[-1]):
+                filtered_noise[:, n] = self.noise_alfa * noise[:, n] + (1 - self.noise_alfa) * filtered_noise[:, n - 1]
+                    
+            data_tensor += filtered_noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
         
         # 3. Random gain (Data only).
         data_tensor *= (self.gain[0] + torch.rand(1).item() * (self.gain[1] - self.gain[0]))
@@ -120,5 +125,8 @@ class ZerosPolesDataset(Dataset):
         
         if self.transforms_flag:
             data_tensor, masks_tensor, freq_tensor = self._augmentations_(data_tensor, masks_tensor)
+        else:
+            freq_tensor = data_tensor[0 ,:]
+            data_tensor = data_tensor[1:,:]
 
         return data_tensor, masks_tensor, freq_tensor
