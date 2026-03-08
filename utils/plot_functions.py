@@ -81,7 +81,7 @@ def plot_frequency_responses(
             y_data = data_map[cfg['data_key']]
             
             ax.plot(x_data, y_data, '.', markersize=plot_config['markersize_data'], 
-                    linestyle='', alpha=0.7)
+                    linestyle='-', alpha=0.7)
 
             # 2. Plot Masks.
             has_mask = False
