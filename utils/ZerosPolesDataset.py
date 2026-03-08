@@ -112,10 +112,13 @@ class ZerosPolesDataset(Dataset):
         if max(self.noise_level) > 0.0:
             noise = torch.randn_like(data_tensor)
             
-            filtered_noise = torch.zeros_like(noise)
-            for n in range(1, data_tensor.shape[-1]):
-                filtered_noise[:, n] = self.noise_filter * noise[:, n] + (1 - self.noise_filter) * filtered_noise[:, n - 1]
-            data_tensor += filtered_noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
+            if self.noise_filter < 1.0:
+                filtered_noise = torch.zeros_like(noise)
+                for n in range(1, data_tensor.shape[-1]):
+                    filtered_noise[:, n] = self.noise_filter * noise[:, n] + (1 - self.noise_filter) * filtered_noise[:, n - 1]
+                noise = filtered_noise               
+                    
+            data_tensor += noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
 
             '''
             # Simple 1D average pooling as approximation
