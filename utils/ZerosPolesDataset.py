@@ -26,7 +26,7 @@ class ZerosPolesDataset(Dataset):
         crop_ratio: List[float] = [1.0, 1.0],
         time_delay: List[float] = [0.0, 0.0],
         noise_level: List[float] = [0.0, 0.0],
-        noise_filter: float = 0.6,
+        noise_reduce: int = 0,
         gain: List[float] = [1.0, 1.0]
     ):
         
@@ -49,7 +49,7 @@ class ZerosPolesDataset(Dataset):
         self.crop_ratio = crop_ratio
         self.time_delay = time_delay
         self.noise_level = noise_level
-        self.noise_filter = noise_filter
+        self.noise_reduce = noise_reduce
         self.gain = gain
         
     def __len__(self) -> int:
@@ -112,34 +112,10 @@ class ZerosPolesDataset(Dataset):
         if max(self.noise_level) > 0.0:
             noise = torch.randn_like(data_tensor)
             
-            if self.noise_filter < 1.0:
-                filtered_noise = torch.zeros_like(noise)
-                for n in range(1, data_tensor.shape[-1]):
-                    filtered_noise[:, n] = self.noise_filter * noise[:, n] + (1 - self.noise_filter) * filtered_noise[:, n - 1]
-                noise = filtered_noise               
-                    
+            for _ in range(self.noise_reduce):
+                noise *= torch.randint(0, 2, size=noise.shape, dtype=noise.dtype)
+                       
             data_tensor += noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
-
-            '''
-            # Simple 1D average pooling as approximation
-            kernel_size = max(1, int(1 / (1 - self.noise_alfa)))
-            padding = kernel_size // 2
-            
-            filtered_noise = F.avg_pool1d(
-                noise.unsqueeze(0), 
-                kernel_size=kernel_size, 
-                padding=padding, 
-                stride=1
-            ).squeeze(0)
-
-            if filtered_noise.shape[-1] != data_tensor.shape[-1]:
-                filtered_noise = filtered_noise[..., :data_tensor.shape[-1]]
-            
-            noise_scale = data_tensor.std(dim=-1, keepdim=True) * (
-                self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0])
-            )
-            data_tensor += filtered_noise * noise_scale
-            '''     
 
         # 4. Random gain (Data only).
         data_tensor *= (self.gain[0] + torch.rand(1).item() * (self.gain[1] - self.gain[0]))
