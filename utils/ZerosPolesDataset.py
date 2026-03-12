@@ -5,6 +5,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 import torch.nn.functional as F
+from dataclasses import dataclass, field
 from typing import Union, Tuple, List, Optional
 
 def positions_to_mask(positions, total_bits):
@@ -16,18 +17,22 @@ def positions_to_mask(positions, total_bits):
     return mask
 
 
+@dataclass
+class TransformsConfig:
+    crop_ratio: List[float] = field(default_factory=lambda: [1.0, 1.0])
+    time_delay: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    noise_level: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    noise_reduce: int = 0
+    gain: List[float] = field(default_factory=lambda: [1.0, 1.0])
+    
+
 class ZerosPolesDataset(Dataset):
     def __init__(
         self,
         dataset_dir: Union[str, Path],
         split: str,
         samples: Optional[List] = None,
-        transforms_flag: bool = False,
-        crop_ratio: List[float] = [1.0, 1.0],
-        time_delay: List[float] = [0.0, 0.0],
-        noise_level: List[float] = [0.0, 0.0],
-        noise_reduce: int = 0,
-        gain: List[float] = [1.0, 1.0]
+        transforms: Optional[TransformsConfig] = None
     ):
         
         super().__init__()
@@ -44,26 +49,27 @@ class ZerosPolesDataset(Dataset):
             self.samples = list(self.masks.keys())
         else:
             self.samples = samples
-
-        self.transforms_flag = transforms_flag
-        self.crop_ratio = crop_ratio
-        self.time_delay = time_delay
-        self.noise_level = noise_level
-        self.noise_reduce = noise_reduce
-        self.gain = gain
         
+        self.transforms = transforms
+            
     def __len__(self) -> int:
         return len(self.samples)
 
     def _augmentations_(self, data_tensor, masks_tensor):
-      
+        
+        crop_ratio = self.transforms.crop_ratio
+        time_delay = self.transforms.time_delay
+        noise_level = self.transforms.noise_level
+        noise_reduce = self.transforms.noise_reduce
+        gain = self.transforms.gain
+        
         # 1. Crop-Resize Augmentation: both data and masks.
-        if min(self.crop_ratio) < 1.0:
+        if min(crop_ratio) < 1.0:
 
             N = data_tensor.shape[-1]          
             
             # Determine random crop length.
-            N_crop = int((self.crop_ratio[0] + torch.rand(1).item() * (self.crop_ratio[1] - self.crop_ratio[0])) * N)
+            N_crop = int((crop_ratio[0] + torch.rand(1).item() * (crop_ratio[1] - crop_ratio[0])) * N)
 
             # Determine random start index.
             start_idx = 0
@@ -90,8 +96,8 @@ class ZerosPolesDataset(Dataset):
         freq_tensor = data_tensor[0 ,:]
         data_tensor = data_tensor[1:,:]
         # 2. Random time-delay (Data only).
-        if max(self.time_delay) > 0.0:
-            omega_delay = -2*np.pi * freq_tensor * (self.time_delay[0] + torch.rand(1).item() * (self.time_delay[1] - self.time_delay[0]))
+        if max(time_delay) > 0.0:
+            omega_delay = -2*np.pi * freq_tensor * (time_delay[0] + torch.rand(1).item() * (time_delay[1] - time_delay[0]))
 
             # Precompute trigonometric values
             cos_theta_tensor = torch.cos(omega_delay)
@@ -109,16 +115,16 @@ class ZerosPolesDataset(Dataset):
             data_tensor = torch.stack([delay_real_tensor, delay_imag_tensor], dim=0)
 
         # 3. Random Noise Augmentation (Data only).
-        if max(self.noise_level) > 0.0:
+        if max(noise_level) > 0.0:
             noise = torch.randn_like(data_tensor)
             
-            for _ in range(self.noise_reduce):
+            for _ in range(noise_reduce):
                 noise *= torch.randint(0, 2, size=noise.shape, dtype=noise.dtype)
                        
-            data_tensor += noise * data_tensor.std(dim=-1, keepdim=True) * (self.noise_level[0] + torch.rand(1).item() * (self.noise_level[1] - self.noise_level[0]))
+            data_tensor += noise * data_tensor.std(dim=-1, keepdim=True) * (noise_level[0] + torch.rand(1).item() * (noise_level[1] - noise_level[0]))
 
         # 4. Random gain (Data only).
-        data_tensor *= (self.gain[0] + torch.rand(1).item() * (self.gain[1] - self.gain[0]))
+        data_tensor *= (gain[0] + torch.rand(1).item() * (gain[1] - gain[0]))
                     
         return data_tensor, masks_tensor, freq_tensor
 
@@ -141,7 +147,7 @@ class ZerosPolesDataset(Dataset):
             masks_list.append(positions_to_mask(positions, total_bits=data_tensor.shape[-1]))
         masks_tensor = torch.from_numpy(np.vstack(masks_list)).float()
         
-        if self.transforms_flag:
+        if self.transforms:
             data_tensor, masks_tensor, freq_tensor = self._augmentations_(data_tensor, masks_tensor)
         else:
             freq_tensor = data_tensor[0 ,:]
