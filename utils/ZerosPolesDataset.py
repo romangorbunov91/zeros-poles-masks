@@ -95,6 +95,7 @@ class ZerosPolesDataset(Dataset):
 
         freq_tensor = data_tensor[0 ,:]
         data_tensor = data_tensor[1:,:]
+        
         # 2. Random time-delay (Data only).
         if max(time_delay) > 0.0:
             omega_delay = -2*np.pi * freq_tensor * (time_delay[0] + torch.rand(1).item() * (time_delay[1] - time_delay[0]))
