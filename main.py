@@ -36,6 +36,9 @@ if __name__ == "__main__":
             poles=poles,
             zeros=zeros)
         
+        gain = configer["gain"]
+        gain_complex *= (gain[0] + np.random.rand() * (gain[1] - gain[0]))
+        
         data = np.column_stack((freq, np.real(gain_complex), np.imag(gain_complex)))
 
         np.savetxt(
