@@ -41,6 +41,7 @@ class ZerosPolesDataset(Dataset):
         self,
         dataset_dir: Union[str, Path],
         split: str,
+        mask_halfwindow: int = 0,
         samples: Optional[List] = None,
         transforms: Optional[TransformsConfig] = None
     ):
@@ -53,6 +54,8 @@ class ZerosPolesDataset(Dataset):
         assert mask_path.exists(), f"Mask not found: {mask_path}"
         with open(mask_path, "r") as f:
             self.masks = json.load(f)
+        
+        self.mask_halfwindow = mask_halfwindow
         
         # Read all samples.
         if samples is None:
@@ -155,7 +158,13 @@ class ZerosPolesDataset(Dataset):
         for key, positions in mask_dict.items():
             if key == 'zero_poles':
                 continue
-            masks_list.append(positions_to_mask(positions, total_bits=data_tensor.shape[-1]))
+            masks_list.append(
+                positions_to_mask(
+                    positions=positions,
+                    total_bits=data_tensor.shape[-1],
+                    halfwindow=self.mask_halfwindow
+                    )
+                )
         masks_tensor = torch.from_numpy(np.vstack(masks_list)).float()
         
         if self.transforms:
