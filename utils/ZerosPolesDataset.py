@@ -8,11 +8,21 @@ import torch.nn.functional as F
 from dataclasses import dataclass, field
 from typing import Union, Tuple, List, Optional
 
-def positions_to_mask(positions, total_bits):
+def positions_to_mask(
+    positions,
+    total_bits: int,
+    halfwindow: int=0
+    ):
+    
     """Convert list of bit positions to an integer mask."""
+    
     mask = [0] * total_bits
     for pos in positions:
-        mask[pos] = 1
+
+        start = max(0, pos - halfwindow)
+        end = min(total_bits, pos + halfwindow + 1)
+
+        mask[start:end] = [1] * (end - start)
     
     return mask
 
