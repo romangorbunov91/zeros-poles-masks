@@ -5,7 +5,7 @@ from pathlib import Path
 from utils.general_functions import transfer_function, generate_masks, calculate_freq_zeros_poles
 
 config_dir = Path("./config/")
-dataset_dir = Path('./dataset/')
+dataset_dir = Path('./zeros-poles-dataset/')
 
 if __name__ == "__main__":
     
