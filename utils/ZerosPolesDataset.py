@@ -42,6 +42,8 @@ class ZerosPolesDataset(Dataset):
         dataset_dir: Union[str, Path],
         split: str,
         mask_halfwindow: int = 0,
+        diff_transform_lvl_1: bool = True,
+        diff_transform_lvl_2: bool = True,
         samples: Optional[List] = None,
         transforms: Optional[TransformsConfig] = None
     ):
@@ -57,6 +59,9 @@ class ZerosPolesDataset(Dataset):
         
         self.mask_halfwindow = mask_halfwindow
         
+        self.diff_transform_lvl_1 = diff_transform_lvl_1
+        self.diff_transform_lvl_2 = diff_transform_lvl_2
+        
         # Read all samples.
         if samples is None:
             self.samples = list(self.masks.keys())
@@ -68,20 +73,29 @@ class ZerosPolesDataset(Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def _apply_data_transform(self, data_tensor: torch.Tensor, eps: float=1e-12) -> torch.Tensor:
-
-        l2_norm = torch.sqrt(torch.sum(data_tensor ** 2, dim=0, keepdim=True))
-        data_tensor_normalized = data_tensor / (l2_norm + eps)
-        '''
-        data_tensor_sign = torch.sign(data_tensor_normalized).to(data_tensor_normalized.dtype)    
-        sign_product = torch.prod(data_tensor_sign, dim=0, keepdim=True)
-        '''
-        angle_tensor = torch.atan2(data_tensor[1, :], data_tensor[0, :])
-        data_tensor_arg = torch.from_numpy(np.unwrap(angle_tensor.cpu())).float().unsqueeze(0)
+    def _apply_data_transform(self,
+        data_tensor: torch.Tensor,
+        diff_transform_lvl_1: bool = False,
+        diff_transform_lvl_2: bool = False
+        ) -> torch.Tensor:
         
-        data_tensor_log = torch.log10(l2_norm) / 2.0
-        return torch.cat([data_tensor_log, data_tensor_arg, data_tensor_normalized], dim=0)
+        if not diff_transform_lvl_1 and not diff_transform_lvl_2:
+            return data_tensor
     
+        diff1 = torch.diff(data_tensor, dim=1)
+        diff1 = torch.cat([diff1, diff1[:, -1:]], dim=1)
+
+        if diff_transform_lvl_2:
+            diff2 = torch.diff(diff1, dim=1)
+            diff2 = torch.cat([diff2, diff2[:, -1:]], dim=1)
+            
+        if diff_transform_lvl_1 and not diff_transform_lvl_2:
+            return diff1
+        if not diff_transform_lvl_1 and diff_transform_lvl_2:
+            return diff2
+        
+        return torch.cat([diff1, diff2], dim=0)
+        
     def _augmentations_(self, data_tensor, masks_tensor):
         
         crop_ratio = self.transforms.crop_ratio
@@ -164,9 +178,13 @@ class ZerosPolesDataset(Dataset):
         if not sample_path.exists():
             raise FileNotFoundError(f"File not found: {sample_path}")
         
-        data_np = np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)
-        data_tensor = torch.from_numpy(data_np.T).float()
-        
+        data_np = (np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)).T
+
+        z = data_np[1, :] + 1j * data_np[2, :]
+        magnitude = 20*np.log10(np.abs(z))
+        phase = np.unwrap(np.angle(z))
+        data_tensor = torch.from_numpy(np.vstack([data_np[0, :], magnitude, phase])).float()
+
         mask_dict = self.masks[sample_id]
         masks_list = []
         for key, positions in mask_dict.items():
@@ -187,4 +205,10 @@ class ZerosPolesDataset(Dataset):
             freq_tensor = data_tensor[0 ,:]
             data_tensor = data_tensor[1:,:]
 
-        return self._apply_data_transform(data_tensor), masks_tensor, freq_tensor
+        data_tensor = self._apply_data_transform(
+            data_tensor=data_tensor,
+            diff_transform_lvl_1=self.diff_transform_lvl_1,
+            diff_transform_lvl_2=self.diff_transform_lvl_2
+        )
+        
+        return data_tensor, self._apply_data_transform(data_tensor=data_tensor), masks_tensor, freq_tensor
