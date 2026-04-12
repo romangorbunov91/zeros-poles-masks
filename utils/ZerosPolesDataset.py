@@ -34,6 +34,7 @@ def linear_idx_to_log_idx(
     ):
 
     """Map linear spacing index/indices to equivalent log spacing index/indices."""
+
     positions = np.asarray(positions)
     R = fmax / fmin
     N = total_bits - 1
@@ -95,24 +96,32 @@ class ZerosPolesDataset(Dataset):
         if not diff_transform_lvl_1 and not diff_transform_lvl_2:
             return data_tensor
     
-        diff1 = torch.diff(data_tensor, dim=1)
-        raw_diff1 = torch.cat([diff1, diff1[:, -1:]], dim=1)
+        #diff1 = torch.diff(data_tensor, dim=1)
+        #diff1 = torch.cat([diff1, diff1[:, -1:]], dim=1)
+        diff1, _ = torch.gradient(data_tensor)
+        print(data_tensor.shape)
+        print(diff1.shape)
 
-        threshold = torch.quantile(raw_diff1.abs(), 0.95)
-        diff1 = torch.where(raw_diff1.abs() > threshold, torch.sign(raw_diff1) * threshold, raw_diff1)
+        #threshold = torch.quantile(raw_diff1.abs(), 0.95)
+        #diff1 = torch.where(raw_diff1.abs() > threshold, torch.sign(raw_diff1) * threshold, raw_diff1)
 
         if diff_transform_lvl_2:
-            diff2 = torch.diff(diff1, dim=1)
-            raw_diff2 = torch.cat([diff2, diff2[:, -1:]], dim=1)
-            threshold = torch.quantile(raw_diff2.abs(), 0.95)
-            diff2 = torch.where(raw_diff2.abs() > threshold, torch.sign(raw_diff2) * threshold, raw_diff2)
+            #diff2 = torch.diff(diff1, dim=1)
+            #diff2 = torch.cat([diff2, diff2[:, -1:]], dim=1)
+
+            diff2 = torch.gradient(diff1, dim=-1, edge_order=2)
+
+            #threshold = torch.quantile(raw_diff2.abs(), 0.95)
+            #diff2 = torch.where(raw_diff2.abs() > threshold, torch.sign(raw_diff2) * threshold, raw_diff2)
             
         if diff_transform_lvl_1 and not diff_transform_lvl_2:
             return diff1
         if not diff_transform_lvl_1 and diff_transform_lvl_2:
             return diff2
         
-        return torch.cat([diff1*1e3/4, diff2*1e5/4], dim=0)
+        return torch.cat([diff1, diff2], dim=0)
+#        return torch.cat([diff1*1e3/4, diff2*1e5/4], dim=0)
+
         
     def _augmentations_(self, data_tensor, masks_tensor):
         
