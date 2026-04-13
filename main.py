@@ -39,7 +39,7 @@ if __name__ == "__main__":
         gain = configer["gain"]
         gain_complex *= (gain[0] + np.random.rand() * (gain[1] - gain[0]))
         
-        data = np.column_stack((freq, np.real(gain_complex), np.imag(gain_complex)))
+        data = np.column_stack((freq, 20*np.log10(np.abs(gain_complex)), np.unwrap(np.angle(gain_complex))))
 
         np.savetxt(
             output_data_dir / f"{key}.csv",
