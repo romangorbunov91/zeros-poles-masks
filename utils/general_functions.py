@@ -72,7 +72,7 @@ def calculate_freq_zeros_poles(mask, configer):
         low=[F_MIN_RANGE[0], F_MAX_RANGE[0]],
         high=[F_MIN_RANGE[-1], F_MAX_RANGE[-1]]
     )
-    
+    '''
     freq = np.linspace(freq_lim[0], freq_lim[-1], N)
     delta_f = freq[1] - freq[0]
     
@@ -83,5 +83,16 @@ def calculate_freq_zeros_poles(mask, configer):
     zeros = []
     zeros.extend(  freq_lim[0] + np.array(mask["left_zeros"]) * delta_f)
     zeros.extend(-(freq_lim[0] + np.array(mask["right_zeros"]) * delta_f))
-        
+    '''
+    
+    freq = np.logspace(np.log10(freq_lim[0]), np.log10(freq_lim[-1]), N)
+    
+    poles = []
+    poles.extend( freq[mask["left_poles"]])
+    poles.extend(-freq[mask["right_poles"]])
+    
+    zeros = []
+    zeros.extend( freq[mask["left_zeros"]])
+    zeros.extend(-freq[mask["right_zeros"]])
+     
     return freq, zeros, poles
