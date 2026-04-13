@@ -159,12 +159,11 @@ def plot_responses(
 
     for k in range(N_plot_samples):
         try:
-            raw_data_tensor, data_tensor, masks_tensor, freq_tensor = dataset_to_plot[k]
+            data_tensor, masks_tensor, freq_tensor = dataset_to_plot[k]
         except IndexError:
             break
             
         # Detach from GPU and convert to numpy.
-        raw_data = raw_data_tensor.detach().cpu().numpy()
         data = data_tensor.detach().cpu().numpy()
         masks = masks_tensor.detach().cpu().numpy()
         freq = freq_tensor.detach().cpu().numpy()
@@ -174,12 +173,12 @@ def plot_responses(
         data_map = {
             'freq': freq,
             'samples': x_samples,
-            'mag': raw_data[0,:],
-            'ph': raw_data[1,:],
-            'diff1_mag': data[0,:],
-            'diff1_ph' : data[1,:],
-            'diff2_mag': data[2,:],
-            'diff2_ph' : data[3,:]
+            'mag'      : data[0,:],
+            'ph'       : data[1,:],
+            'diff1_mag': data[2,:],
+            'diff1_ph' : data[3,:],
+            'diff2_mag': data[4,:],
+            'diff2_ph' : data[5,:]
         }
 
         for idx, cfg in enumerate(plot_config['plots']):
