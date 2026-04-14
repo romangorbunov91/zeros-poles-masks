@@ -1,6 +1,6 @@
 import numpy as np
 import itertools
-from typing import List
+from typing import List, Dict, Any
 
 
 def transfer_function(
@@ -21,7 +21,7 @@ def transfer_function(
     return gain_complex
 
 
-def generate_masks(masks, configer):
+def generate_masks(masks: Dict[str, Any], configer: Dict[str, Any]) -> Dict[str, Any]:
     
     N = configer["length"]
     N_ZERO_POLE_MAX = configer["Nzp_max"]
@@ -39,25 +39,31 @@ def generate_masks(masks, configer):
         range(int(configer["size"]))
     ]
 
-    for nzp, nlp, nrp, nlz, nrz, n in itertools.product(*param_ranges):
+    clearance_dist = configer["clearance_dist"]
+    rng = np.random.default_rng(configer["seed"])
+    
+    if clearance_dist > 0:
         
-        key = f"{nzp}zp{nlp}lp{nrp}rp{nlz}lz{nrz}rz_{n:03}"
-        
-        masks[key] = {
-            "zero_poles": int(nzp),
+    else:
+        for nzp, nlp, nrp, nlz, nrz, n in itertools.product(*param_ranges):
             
-            "left_poles": np.random.choice(
-                N, size=nlp, replace=False).tolist(),
-
-            "right_poles": np.random.choice(
-                N, size=nrp, replace=False).tolist(),
+            key = f"{nzp}zp{nlp}lp{nrp}rp{nlz}lz{nrz}rz_{n:03}"
             
-            "left_zeros": np.random.choice(
-                N, size=nlz, replace=False).tolist(),
+            masks[key] = {
+                "zero_poles": int(nzp),
+                
+                "left_poles": rng.choice(
+                    N, size=nlp, replace=False).tolist(),
 
-            "right_zeros": np.random.choice(
-                N, size=nrz, replace=False).tolist()
-        }
+                "right_poles": rng.choice(
+                    N, size=nrp, replace=False).tolist(),
+                
+                "left_zeros": rng.choice(
+                    N, size=nlz, replace=False).tolist(),
+
+                "right_zeros": rng.choice(
+                    N, size=nrz, replace=False).tolist()
+            }
 
     return masks
 
