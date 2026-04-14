@@ -1,6 +1,7 @@
 {
     "split": "train",
     "size": 100,
+    "clearance_dist": 10,
     "seed": null,
     "length": 512,
     "fmin": [1.0, 5e3],
