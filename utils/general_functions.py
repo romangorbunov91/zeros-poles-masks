@@ -3,6 +3,31 @@ import itertools
 from typing import List, Dict, Any
 
 
+def split_zones(
+    L: int, # Total size.
+    N_zones: int, # Number of zones.
+    clearance_width: int # Distance between zones.
+    ) -> list:
+    
+    L = int(L)
+    N_zones = int(N_zones)
+    
+    if N_zones > 0:
+        zone_width = int(L - (N_zones + 1) * clearance_width) // N_zones
+
+        total_num_zones = 2 * N_zones + 1 # Always odd.
+        borders = [None]*(total_num_zones-1)
+        current_border = L
+
+        for idx in range(total_num_zones - 1):
+            current_border -= clearance_width if idx % 2 == 0 else zone_width
+            borders[-(idx+1)] = current_border
+    else:
+        borders = None
+
+    return borders
+
+
 def transfer_function(
   freq: List[float],
   zero_poles: int,
@@ -39,16 +64,54 @@ def generate_masks(masks: Dict[str, Any], configer: Dict[str, Any]) -> Dict[str,
         range(int(configer["size"]))
     ]
 
-    clearance_dist = configer["clearance_dist"]
+    clearance_width = configer["clearance_width"]
     rng = np.random.default_rng(configer["seed"])
     
-    if clearance_dist > 0:
+    
+    for nzp, nlp, nrp, nlz, nrz, n in itertools.product(*param_ranges):
+        key = f"{nzp}zp{nlp}lp{nrp}rp{nlz}lz{nrz}rz_{n:03}"
         
-    else:
-        for nzp, nlp, nrp, nlz, nrz, n in itertools.product(*param_ranges):
+        if clearance_width > 0:
+            left_objects_borders = split_zones(
+                L=N,
+                N_zones=(nlp + nlz),
+                clearance_width=clearance_width
+                )
             
-            key = f"{nzp}zp{nlp}lp{nrp}rp{nlz}lz{nrz}rz_{n:03}"
+            left_objects = []
+            if left_objects_borders is not None:
+                for idx in range(len(left_objects_borders)//2):
+                    left_objects.append(int(rng.integers(left_objects_borders[2*idx], left_objects_borders[2*idx+1])))
             
+            rng.shuffle(left_objects)
+            
+            
+            right_objects_borders = split_zones(
+                L=N,
+                N_zones=(nrp + nrz),
+                clearance_width=clearance_width
+                )
+            
+            right_objects = []
+            if right_objects_borders is not None:
+                for idx in range(len(right_objects_borders)//2):
+                    right_objects.append(int(rng.integers(right_objects_borders[2*idx], right_objects_borders[2*idx+1])))
+            rng.shuffle(right_objects)
+            
+            
+            masks[key] = {
+                "zero_poles": int(nzp),
+                
+                "left_poles": left_objects[:nlp],
+
+                "right_poles": right_objects[:nrp],
+                
+                "left_zeros": left_objects[nlp:],
+
+                "right_zeros": right_objects[nrp:]
+            }
+        
+        else:
             masks[key] = {
                 "zero_poles": int(nzp),
                 
