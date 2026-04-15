@@ -1,6 +1,6 @@
 {
     "split": "train",
-    "size": 100,
+    "size": 500,
     "clearance_width": 20,
     "seed": null,
     "length": 512,
