@@ -9,6 +9,7 @@
 
 !requirements.txt
 !main.py
-!debug_notebook.ipynb
+!debug_nb.ipynb
+!debug_nb_log_interp.ipynb
 
 **/__pycache__/
