@@ -1,6 +1,6 @@
 import numpy as np
 import itertools
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 def split_zones(
@@ -29,13 +29,17 @@ def split_zones(
 
 
 def transfer_function(
-  freq: List[float],
-  zero_poles: int,
-  poles: List[float],
-  zeros: List[float]
-) -> List[float]:
-        
-    gain_complex = 1.0 / (1j*2*np.pi*freq)**zero_poles
+    freq: List[float],
+    zero_poles: int,
+    poles: List[float],
+    zeros: List[float],
+    gain: Optional[float] = 1.0,
+    delay: Optional[float] = 0.0
+    ) -> List[float]:
+    
+    omega = 2*np.pi*freq
+    
+    gain_complex = gain / (1j * omega)**zero_poles * np.exp(-1j * omega * delay)
         
     for zero in zeros:
         gain_complex *= 1.0 + 1j*freq/zero
@@ -46,7 +50,11 @@ def transfer_function(
     return gain_complex
 
 
-def generate_masks(masks: Dict[str, Any], configer: Dict[str, Any]) -> Dict[str, Any]:
+def generate_masks(
+    masks: Dict[str, Any],
+    configer: Dict[str, Any],
+    rng: Optional[np.random.Generator] = None
+    ) -> Dict[str, Any]:
     
     N = configer["length"]
     N_ZERO_POLE_MAX = configer["Nzp_max"]
@@ -65,7 +73,8 @@ def generate_masks(masks: Dict[str, Any], configer: Dict[str, Any]) -> Dict[str,
     ]
 
     clearance_width = configer["clearance_width"]
-    rng = np.random.default_rng(configer["seed"])
+    if rng is None:
+        rng = np.random.default_rng()
     
     for nzp, nlp, nrp, nlz, nrz, n in itertools.product(*param_ranges):
         key = f"{nzp}zp{nlp}lp{nrp}rp{nlz}lz{nrz}rz_{n:03}"
