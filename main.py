@@ -19,8 +19,14 @@ if __name__ == "__main__":
     output_data_dir = dataset_dir / configer['split']
     output_data_dir.mkdir(parents=True, exist_ok=True)
     
+    rng = np.random.default_rng(configer["seed"])
+    
     # Generate masks.
-    masks = generate_masks(masks={}, configer=configer)
+    masks = generate_masks(
+        masks={},
+        configer=configer,
+        rng=rng
+        )
 
     # Save masks as json.
     with open(dataset_dir / (configer['split'] + '_masks.json'), "w") as f:
@@ -34,12 +40,22 @@ if __name__ == "__main__":
             freq=freq,
             zero_poles=mask["zero_poles"],
             poles=poles,
-            zeros=zeros)
+            zeros=zeros
+            )
+        
+        
+        magnitude = 20*np.log10(np.abs(gain_complex))
+        phase = np.unwrap(np.angle(gain_complex))
         
         gain = configer["gain"]
-        gain_complex *= (gain[0] + np.random.rand() * (gain[1] - gain[0]))
+        delay = configer["delay"]
         
-        data = np.column_stack((freq, 20*np.log10(np.abs(gain_complex)), np.unwrap(np.angle(gain_complex))))
+        magnitude += 20*np.log10(gain[0] + rng.random() * (gain[1] - gain[0]))
+        
+        if max(delay) > 0.0:
+            phase -= 2 * np.pi * freq * (delay[0] + rng.random() * (delay[1] - delay[0]))
+        
+        data = np.column_stack((freq, magnitude, phase))
 
         np.savetxt(
             output_data_dir / f"{key}.csv",
