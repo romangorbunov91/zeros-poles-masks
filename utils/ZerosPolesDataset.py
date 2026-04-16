@@ -56,11 +56,10 @@ class ZerosPolesDataset(Dataset):
         dataset_dir: Union[str, Path],
         split: str,
         mask_halfwindow: int = 0,
-        diff_transform_lvl_1: bool = True,
-        diff_transform_lvl_2: bool = True,
         samples: Optional[List] = None,
-        transforms: Optional[TransformsConfig] = None
-    ):
+        transforms: Optional[TransformsConfig] = None,
+        rng: Optional[np.random.Generator] = None
+        ):
         
         super().__init__()
         
@@ -73,9 +72,6 @@ class ZerosPolesDataset(Dataset):
         
         self.mask_halfwindow = mask_halfwindow
         
-        self.diff_transform_lvl_1 = diff_transform_lvl_1
-        self.diff_transform_lvl_2 = diff_transform_lvl_2
-        
         # Read all samples.
         if samples is None:
             self.samples = list(self.masks.keys())
@@ -83,37 +79,62 @@ class ZerosPolesDataset(Dataset):
             self.samples = samples
         
         self.transforms = transforms
+        
+        if rng is None:
+            self.rng = np.random.default_rng()
             
     def __len__(self) -> int:
         return len(self.samples)
         
-    def _augmentations_(self, data_tensor, masks_tensor):
+    def _augmentations_(self,
+        freq,
+        magnitude,
+        phase,
+        masks
+        ):
         
         crop_ratio = self.transforms.crop_ratio
-        time_delay = self.transforms.time_delay
+        delay = self.transforms.delay
         noise_level = self.transforms.noise_level
         noise_reduce = self.transforms.noise_reduce
         gain = self.transforms.gain
+        rng = self.rng
         
         # 1. Crop-Resize Augmentation: both data and masks.
         if min(crop_ratio) < 1.0:
 
-            N = data_tensor.shape[-1]          
+            N = data.shape[-1]          
             
             # Determine random crop length.
-            N_crop = int((crop_ratio[0] + torch.rand(1).item() * (crop_ratio[1] - crop_ratio[0])) * N)
+            N_crop = int((crop_ratio[0] + rng.random() * (crop_ratio[1] - crop_ratio[0])) * N)
 
             # Determine random start index.
             start_idx = 0
             if N_crop < N:
-                start_idx = torch.randint(0, N - N_crop + 1, (1,)).item()
+                start_idx = rng.integers(0, N - N_crop + 1)
             
             # Slice tensors (keep dimensions for interpolation).
-            data_crop = data_tensor[:, start_idx:(start_idx + N_crop)]
-            masks_crop = masks_tensor[:, start_idx:(start_idx + N_crop)]
+            data_crop = data[:, start_idx:(start_idx + N_crop)]
+            masks_crop = masks[:, start_idx:(start_idx + N_crop)]
             
-            # Add batch dimension since torch.nn.functional.interpolate expects (Batch, Channel, Length).
-            # Then remove back.
+            if N_crop != N:
+                # PyTorch's align_corners=False uses half-pixel center alignment:
+                # src_coord = (dst_coord + 0.5) * (src_size / dst_size) - 0.5
+                scale = N_crop / N
+                x_new = (np.arange(N) + 0.5) * scale - 0.5
+                x_new = np.clip(x_new, 0, N_crop - 1)
+                
+                # Vectorized interpolation: flatten leading dims, interp, reshape back
+                orig_shape = data_crop.shape
+                data_2d = data_crop.reshape(-1, N_crop)
+                data_resized = np.interp(x_new, np.arange(N_crop), data_2d)
+                data_tensor = data_resized.reshape(orig_shape[:-1] + (N,))
+            else:
+                data_tensor = data_crop.copy()
+            
+            masks_remaped = np.zeros_like(masks)
+            ch_idxs, idxs = np.where(masks_crop > 0.5)
+                
             data_tensor = F.interpolate(data_crop.unsqueeze(0), size=N, mode='linear', align_corners=False).squeeze(0)
             
             masks_tensor_remaped = torch.zeros_like(masks_tensor)
@@ -125,41 +146,24 @@ class ZerosPolesDataset(Dataset):
                 
             masks_tensor = masks_tensor_remaped
 
-        freq_tensor = data_tensor[0 ,:]
-        data_tensor = data_tensor[1:,:]
+        # Random gain (magnitude only).
+        magnitude += 20*np.log10(gain[0] + rng.random() * (gain[1] - gain[0]))
         
-        # 2. Random time-delay (Data only).
-        if max(time_delay) > 0.0:
-            omega_delay = -2*np.pi * freq_tensor * (time_delay[0] + torch.rand(1).item() * (time_delay[1] - time_delay[0]))
+        # Random time-delay (phase only).
+        if max(delay) > 0.0:
+            phase -= 2 * np.pi * freq * (delay[0] + rng.random() * (delay[1] - delay[0]))
 
-            # Precompute trigonometric values
-            cos_theta_tensor = torch.cos(omega_delay)
-            sin_theta_tensor = torch.sin(omega_delay)
-
-            # Extract real and imaginary components.
-            real_tensor = data_tensor[0,:]
-            imag_tensor = data_tensor[1,:]
-
-            # Complex rotation.
-            delay_real_tensor = real_tensor * cos_theta_tensor - imag_tensor * sin_theta_tensor
-            delay_imag_tensor = real_tensor * sin_theta_tensor + imag_tensor * cos_theta_tensor
-
-            # Reconstruct phase-shifted tensor.
-            data_tensor = torch.stack([delay_real_tensor, delay_imag_tensor], dim=0)
-
-        # 3. Random Noise Augmentation (Data only).
+        data = np.vstack([magnitude, phase])
+        
+        # 4. Random Noise Augmentation (Data only).
         if max(noise_level) > 0.0:
-            noise = torch.randn_like(data_tensor)
-            
-            for _ in range(noise_reduce):
-                noise *= torch.randint(0, 2, size=noise.shape, dtype=noise.dtype)
-                       
-            data_tensor += noise * data_tensor.std(dim=-1, keepdim=True) * (noise_level[0] + torch.rand(1).item() * (noise_level[1] - noise_level[0]))
-
-        # 4. Random gain (Data only).
-        data_tensor *= (gain[0] + torch.rand(1).item() * (gain[1] - gain[0]))
-                    
-        return data_tensor, masks_tensor, freq_tensor
+            noise = rng.standard_normal(size=data.shape)
+            noise_mask = (rng.random(size=noise.shape) < (0.5 ** noise_reduce)).astype(noise.dtype)
+            data_std = np.std(data, axis=-1, keepdims=True)
+            scale = noise_level[0] + rng.random() * (noise_level[1] - noise_level[0])
+            data += noise * noise_mask * data_std * scale
+        
+        return data, masks
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
@@ -169,24 +173,11 @@ class ZerosPolesDataset(Dataset):
         if not sample_path.exists():
             raise FileNotFoundError(f"File not found: {sample_path}")
         
-        data_np = (np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)).T
+        file_data_np = (np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)).T
         
-        freq = data_np[0, :]
-        magnitude = data_np[1, :]
-        phase = data_np[2, :]
-        '''
-        Np = len(freq)
-        freq_log = np.logspace(np.log10(freq.min()), np.log10(freq.max()), Np)
-        
-        z = data_np[1, :] + 1j * data_np[2, :]
-        magnitude = np.interp(freq_log, freq, np.log10(np.abs(z)))
-        phase = np.interp(freq_log, freq, np.unwrap(np.angle(z)))
-        '''
-        mag_ph_np = np.vstack([magnitude, phase])
-        mag_ph_diff1 = np.gradient(mag_ph_np, axis=1)
-        mag_ph_diff2 = np.gradient(mag_ph_diff1, axis=1)
-        
-        data_tensor = torch.from_numpy(np.vstack([mag_ph_np, mag_ph_diff1, mag_ph_diff2])).float()
+        freq = file_data_np[0, :]
+        magnitude = file_data_np[1, :]
+        phase = file_data_np[2, :]
 
         mask_dict = self.masks[sample_id]
         masks_list = []
@@ -200,21 +191,24 @@ class ZerosPolesDataset(Dataset):
                         halfwindow=self.mask_halfwindow
                     ),
                 )
-        masks_tensor = torch.from_numpy(np.vstack(masks_list)).float()
-        
-        '''
-        if self.transforms:
-            data_tensor, masks_tensor, freq_tensor = self._augmentations_(data_tensor, masks_tensor)
-        else:
-            freq_tensor = data_tensor[0 ,:]
-            data_tensor = data_tensor[1:,:]
+        masks_np = np.vstack(masks_list)
 
-        data_tensor_transformed = self._apply_data_transform(
-            data_tensor=data_tensor,
-            diff_transform_lvl_1=self.diff_transform_lvl_1,
-            diff_transform_lvl_2=self.diff_transform_lvl_2
-        )       
-        '''
+        if self.transforms is None:
+            data_np = np.vstack([magnitude, phase])
+        else:
+            data_np, masks_np = self._augmentations_(
+                        freq=freq
+                        magnitude=magnitude,
+                        phase=phase,
+                        masks=masks_np,
+                        )
         
-        return data_tensor, masks_tensor, torch.from_numpy(freq).float()
-    # return torch.cat([diff1*1e3/4, diff2*1e5/4], dim=0)
+        data_diff1_np = np.gradient(data_np, axis=1)
+        data_diff2_np = np.gradient(data_diff1_np, axis=1)
+        
+        # Convert numpy to tensor.
+        data_tensor = torch.from_numpy(np.vstack([data_np, data_diff1_np, data_diff2_np])).float()
+        masks_tensor = torch.from_numpy(masks_np).float()
+        freq_tensor = torch.from_numpy(freq).float()
+        
+        return data_tensor, masks_tensor, freq_tensor
