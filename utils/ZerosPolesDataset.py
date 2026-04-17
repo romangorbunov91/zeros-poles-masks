@@ -9,12 +9,12 @@ from dataclasses import dataclass, field
 from typing import Union, Tuple, List, Optional
 
 def positions_to_mask(
-    positions,
+    positions: List[int],
     total_bits: int,
     halfwindow: int=0
-    ):
+    ) -> List[int]:
     
-    """Convert list of bit positions to an integer mask."""
+    # Convert list of bit positions to an integer mask.
     
     mask = [0] * total_bits
     for pos in positions:
@@ -26,28 +26,13 @@ def positions_to_mask(
     
     return mask
 
-def linear_idx_to_log_idx(
-    positions: List[int],
-    total_bits: int,
-    fmin: float,
-    fmax: float
-    ):
-
-    """Map linear spacing index/indices to equivalent log spacing index/indices."""
-
-    positions = np.asarray(positions)
-    R = fmax / fmin
-    N = total_bits - 1
-    return np.round((N * np.log10(1 + positions * (R - 1) / N) / np.log10(R))).astype(int)
-
 
 @dataclass
 class TransformsConfig:
-    crop_ratio: List[float] = field(default_factory=lambda: [1.0, 1.0])
+    gain: List[float] = field(default_factory=lambda: [1.0, 1.0])
     time_delay: List[float] = field(default_factory=lambda: [0.0, 0.0])
     noise_level: List[float] = field(default_factory=lambda: [0.0, 0.0])
     noise_reduce: int = 0
-    gain: List[float] = field(default_factory=lambda: [1.0, 1.0])
     
 
 class ZerosPolesDataset(Dataset):
@@ -87,75 +72,39 @@ class ZerosPolesDataset(Dataset):
         return len(self.samples)
         
     def _augmentations_(self,
-        freq,
-        magnitude,
-        phase,
-        masks
-        ):
+        freq: np.ndarray,
+        magnitude: np.ndarray,
+        phase: np.ndarray
+        ) -> np.ndarray:
         
-        crop_ratio = self.transforms.crop_ratio
+        """
+        Args:
+            freq: 1D float array of frequencies.
+            magnitude: 1D float array of magnitudes.
+            phase: 1D float array of phases.
+        Returns:
+            np.ndarray of shape (2, Length) with dtype float.
+        """
+        
+        rng = self.rng
+        
+        gain = self.transforms.gain
         delay = self.transforms.delay
         noise_level = self.transforms.noise_level
         noise_reduce = self.transforms.noise_reduce
-        gain = self.transforms.gain
-        rng = self.rng
-        
-        # 1. Crop-Resize Augmentation: both data and masks.
-        if min(crop_ratio) < 1.0:
-
-            N = data.shape[-1]          
-            
-            # Determine random crop length.
-            N_crop = int((crop_ratio[0] + rng.random() * (crop_ratio[1] - crop_ratio[0])) * N)
-
-            # Determine random start index.
-            start_idx = 0
-            if N_crop < N:
-                start_idx = rng.integers(0, N - N_crop + 1)
-            
-            # Slice tensors (keep dimensions for interpolation).
-            data_crop = data[:, start_idx:(start_idx + N_crop)]
-            masks_crop = masks[:, start_idx:(start_idx + N_crop)]
-            
-            if N_crop != N:
-                # PyTorch's align_corners=False uses half-pixel center alignment:
-                # src_coord = (dst_coord + 0.5) * (src_size / dst_size) - 0.5
-                scale = N_crop / N
-                x_new = (np.arange(N) + 0.5) * scale - 0.5
-                x_new = np.clip(x_new, 0, N_crop - 1)
-                
-                # Vectorized interpolation: flatten leading dims, interp, reshape back
-                orig_shape = data_crop.shape
-                data_2d = data_crop.reshape(-1, N_crop)
-                data_resized = np.interp(x_new, np.arange(N_crop), data_2d)
-                data_tensor = data_resized.reshape(orig_shape[:-1] + (N,))
-            else:
-                data_tensor = data_crop.copy()
-            
-            masks_remaped = np.zeros_like(masks)
-            ch_idxs, idxs = np.where(masks_crop > 0.5)
-                
-            data_tensor = F.interpolate(data_crop.unsqueeze(0), size=N, mode='linear', align_corners=False).squeeze(0)
-            
-            masks_tensor_remaped = torch.zeros_like(masks_tensor)
-            ch_idxs, idxs = torch.where(masks_crop > 0.5)
-            if idxs.numel() > 0:
-                # Map coordinates from N_crop space to N space.
-                new_idxs = (idxs.float() * N / N_crop).round().long()#.clamp(0, N-1)
-                masks_tensor_remaped[ch_idxs, new_idxs] = 1
-                
-            masks_tensor = masks_tensor_remaped
 
         # Random gain (magnitude only).
-        magnitude += 20*np.log10(gain[0] + rng.random() * (gain[1] - gain[0]))
+        if any(x != 1.0 for x in gain):
+            magnitude += 20*np.log10(gain[0] + rng.random() * (gain[1] - gain[0]))
         
         # Random time-delay (phase only).
         if max(delay) > 0.0:
             phase -= 2 * np.pi * freq * (delay[0] + rng.random() * (delay[1] - delay[0]))
 
+        # Combine before noising.
         data = np.vstack([magnitude, phase])
         
-        # 4. Random Noise Augmentation (Data only).
+        # Random Noise.
         if max(noise_level) > 0.0:
             noise = rng.standard_normal(size=data.shape)
             noise_mask = (rng.random(size=noise.shape) < (0.5 ** noise_reduce)).astype(noise.dtype)
@@ -163,7 +112,7 @@ class ZerosPolesDataset(Dataset):
             scale = noise_level[0] + rng.random() * (noise_level[1] - noise_level[0])
             data += noise * noise_mask * data_std * scale
         
-        return data, masks
+        return data
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
@@ -196,12 +145,11 @@ class ZerosPolesDataset(Dataset):
         if self.transforms is None:
             data_np = np.vstack([magnitude, phase])
         else:
-            data_np, masks_np = self._augmentations_(
-                        freq=freq
-                        magnitude=magnitude,
-                        phase=phase,
-                        masks=masks_np,
-                        )
+            data_np = self._augmentations_(
+                freq=freq,
+                magnitude=magnitude,
+                phase=phase
+                )
         
         data_diff1_np = np.gradient(data_np, axis=1)
         data_diff2_np = np.gradient(data_diff1_np, axis=1)
