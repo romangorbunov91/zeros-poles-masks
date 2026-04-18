@@ -33,6 +33,18 @@ class TransformsConfig:
     delay: List[float]=field(default_factory=lambda: [0.0, 0.0])
     noise_level: List[float]=field(default_factory=lambda: [0.0, 0.0])
     noise_reduce: int=0
+
+    def __post_init__(self):
+        if self.gain[0] <= 0 or self.gain[1] <= 0:
+            raise ValueError("Gain values must be strictly positive for log10 scaling.")
+        if self.gain[0] > self.gain[1]:
+            raise ValueError("gain[0] must be <= gain[1].")
+        if self.delay[0] < 0 or self.delay[1] < 0:
+            raise ValueError("Delay values can't be negative since "-" is applied inside.")
+        if self.delay[0] > self.delay[1]:
+            raise ValueError("delay[0] must be <= delay[1].")
+        if self.noise_level[0] > self.noise_level[1]:
+            raise ValueError("noise_level[0] must be <= noise_level[1].")
     
 
 class GeneralTransforms:
@@ -49,14 +61,11 @@ class GeneralTransforms:
             self.rng = rng
 
     def __call__(self, data: np.ndarray) -> np.ndarray:
-        """
-        Args:
-            freq: 1D float array of frequencies.
-            magnitude: 1D float array of magnitudes.
-            phase: 1D float array of phases.
-        Returns:
-            np.ndarray of shape (2, Length) with dtype float.
-        """
+        
+        # Gets and Returns np.ndarray of shape (3, Length) with dtype float:
+        # 0 - frequency
+        # 1 - magnitude
+        # 2 - phase
         
         gain = self.config.gain
         delay = self.config.delay
@@ -93,11 +102,11 @@ class GeneralTransforms:
 
 class ConversionTransforms:
     def __init__(self,
-            N: int=2,
+            num_iter: int=2,
             return_input: bool=False
             ):
         
-        self.N = N
+        self.num_iter = num_iter
         self.return_input = return_input
 
     def __call__(self,
@@ -105,13 +114,13 @@ class ConversionTransforms:
             ) -> np.ndarray:
         
         # Skip frequencies (row=0).
-        data_diff = data[1:,:]
+        data_diff = data[1:,:].copy()
         if self.return_input:
             data_out = [data_diff]
         else:
             data_out = []
 
-        for _ in range(self.N):
+        for _ in range(self.num_iter):
             data_diff = np.gradient(data_diff, axis=1)
             data_out.append(data_diff)
 
@@ -125,8 +134,7 @@ class ZerosPolesDataset(Dataset):
         split: str,
         mask_halfwindow: int = 0,
         samples: Optional[List] = None,
-        transforms: Optional[List] = None,
-        rng: Optional[np.random.Generator] = None
+        transforms: Optional[List] = None
         ):
         
         super().__init__()
@@ -146,25 +154,32 @@ class ZerosPolesDataset(Dataset):
         else:
             self.samples = samples
         
-        self.transforms = transforms
-        
-        if rng is None:
-            self.rng = np.random.default_rng()
+        if transforms is None:
+            self.transforms = []
         else:
-            self.rng = rng
-            
+            self.transforms = transforms
+        
+        # Simple in-memory cache to avoid repeated np.loadtxt calls.
+        self._sample_cache: dict[str, np.ndarray] = {}
+
     def __len__(self) -> int:
         return len(self.samples)
+    
+    def _load_csv(self, sample_id: str) -> np.ndarray:
+        sample_path = self.dataset_path / f"{sample_id}.csv"
+        if not sample_path.exists():
+            raise FileNotFoundError(f"File not found: {sample_path}")
+
+        return np.loadtxt(sample_path, delimiter=',', skiprows=1).T
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
         sample_id = self.samples[idx]
-        sample_path = self.dataset_path / f"{sample_id}.csv"
 
-        if not sample_path.exists():
-            raise FileNotFoundError(f"File not found: {sample_path}")
-        
-        data = (np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)).T
+        # Load & cache sample.
+        if sample_id not in self._sample_cache:
+            self._sample_cache[sample_id] = self._load_csv(sample_id)
+        data = self._sample_cache[sample_id].copy()
         
         freq = data[0, :]
 
@@ -180,15 +195,15 @@ class ZerosPolesDataset(Dataset):
                         halfwindow=self.mask_halfwindow
                     ),
                 )
-        masks_np = np.vstack(masks_list)
+        masks = np.vstack(masks_list)
 
         # Augmentations and conversion to diff.
         for t in self.transforms:
             data = t(data)
 
         # Convert numpy to tensor.
-        data_tensor = torch.from_numpy(data).float()
-        masks_tensor = torch.from_numpy(masks_np).float()
-        freq_tensor = torch.from_numpy(freq).float()
+        data_tensor = torch.from_numpy(np.ascontiguousarray(data, dtype=np.float32))
+        masks_tensor = torch.from_numpy(np.ascontiguousarray(masks, dtype=np.float32))
+        freq_tensor = torch.from_numpy(np.ascontiguousarray(freq, dtype=np.float32))
         
         return data_tensor, masks_tensor, freq_tensor
