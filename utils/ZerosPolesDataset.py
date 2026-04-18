@@ -29,14 +29,13 @@ def positions_to_mask(
 
 @dataclass
 class TransformsConfig:
-    diff_transforms: List[bool]=field(default_factory=lambda: [False, False])
     gain: List[float]=field(default_factory=lambda: [1.0, 1.0])
-    time_delay: List[float]=field(default_factory=lambda: [0.0, 0.0])
+    delay: List[float]=field(default_factory=lambda: [0.0, 0.0])
     noise_level: List[float]=field(default_factory=lambda: [0.0, 0.0])
     noise_reduce: int=0
     
 
-class FrequencyDomainTransform:
+class GeneralTransforms:
     def __init__(self,
             config: Optional[TransformsConfig] = None,
             rng: Optional[np.random.Generator] = None
@@ -49,11 +48,7 @@ class FrequencyDomainTransform:
         else:
             self.rng = rng
 
-    def __call__(self,
-            freq: np.ndarray,
-            magnitude: np.ndarray,
-            phase: np.ndarray
-            ) -> np.ndarray:
+    def __call__(self, data: np.ndarray) -> np.ndarray:
         """
         Args:
             freq: 1D float array of frequencies.
@@ -62,13 +57,17 @@ class FrequencyDomainTransform:
         Returns:
             np.ndarray of shape (2, Length) with dtype float.
         """
-        rng = self.config.rng
         
         gain = self.config.gain
         delay = self.config.delay
         noise_level = self.config.noise_level
         noise_reduce = self.config.noise_reduce
-        diff_transforms = self.config.diff_transforms
+
+        rng = self.rng
+        
+        freq = data[0, :]
+        magnitude = data[1, :]
+        phase = data[2, :]
         
         # Random gain (magnitude only).
         if any(x != 1.0 for x in gain):
@@ -81,28 +80,43 @@ class FrequencyDomainTransform:
         # Random Noise.
         
         # Combine before noising.
-        data = np.vstack([magnitude, phase])
+        mag_ph = np.vstack([magnitude, phase])
         
         if max(noise_level) > 0.0:
-            noise = rng.standard_normal(size=data.shape)
+            noise = rng.standard_normal(size=mag_ph.shape)
             noise_mask = (rng.random(size=noise.shape) < (0.5 ** noise_reduce)).astype(noise.dtype)
-            data_std = np.std(data, axis=-1, keepdims=True)
+            data_std = np.std(mag_ph, axis=-1, keepdims=True)
             scale = noise_level[0] + rng.random() * (noise_level[1] - noise_level[0])
-            data += noise * noise_mask * data_std * scale
+            mag_ph += noise * noise_mask * data_std * scale
         
-        # Calculate differences.      
-        if any(x for x in diff_transforms):
-            data_diff_list = []
-            data_diff = data.copy()
-            for diff_flag in diff_transforms:
-                data_diff = np.gradient(data_diff, axis=1)
-                if diff_flag:
-                    data_diff_list.append(data_diff)
-            return np.vstack([data, data_diff_list])
-        else:
-            return data
+        return np.vstack([freq, mag_ph])
 
-    
+class ConversionTransforms:
+    def __init__(self,
+            N: int=2,
+            return_input: bool=False
+            ):
+        
+        self.N = N
+        self.return_input = return_input
+
+    def __call__(self,
+            data: np.ndarray
+            ) -> np.ndarray:
+        
+        # Skip frequencies (row=0).
+        data_diff = data[1:,:]
+        if self.return_input:
+            data_out = [data_diff]
+        else:
+            data_out = []
+
+        for _ in range(self.N):
+            data_diff = np.gradient(data_diff, axis=1)
+            data_out.append(data_diff)
+
+        return np.vstack(data_out)
+        
 
 class ZerosPolesDataset(Dataset):
     def __init__(
@@ -111,7 +125,7 @@ class ZerosPolesDataset(Dataset):
         split: str,
         mask_halfwindow: int = 0,
         samples: Optional[List] = None,
-        transforms: Optional[TransformsConfig] = None,
+        transforms: Optional[List] = None,
         rng: Optional[np.random.Generator] = None
         ):
         
@@ -138,13 +152,6 @@ class ZerosPolesDataset(Dataset):
             self.rng = np.random.default_rng()
         else:
             self.rng = rng
-        
-        if transforms is not None:
-            self.transform = FrequencyDomainTransform(
-                config=self.transforms,
-                rng=self.rng)
-        else:
-            self.transform = None
             
     def __len__(self) -> int:
         return len(self.samples)
@@ -157,11 +164,9 @@ class ZerosPolesDataset(Dataset):
         if not sample_path.exists():
             raise FileNotFoundError(f"File not found: {sample_path}")
         
-        file_data_np = (np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)).T
+        data = (np.loadtxt(self.dataset_path / f"{sample_id}.csv", delimiter=',', skiprows=1)).T
         
-        freq = file_data_np[0, :]
-        magnitude = file_data_np[1, :]
-        phase = file_data_np[2, :]
+        freq = data[0, :]
 
         mask_dict = self.masks[sample_id]
         masks_list = []
@@ -177,19 +182,12 @@ class ZerosPolesDataset(Dataset):
                 )
         masks_np = np.vstack(masks_list)
 
-        if self.transforms is None:
-            data_np = np.vstack([magnitude, phase])
-        else:
-            data_np = self._augmentations_(
-                freq=freq,
-                magnitude=magnitude,
-                phase=phase
-                )
-        
-        
-        
+        # Augmentations and conversion to diff.
+        for t in self.transforms:
+            data = t(data)
+
         # Convert numpy to tensor.
-        data_tensor = torch.from_numpy().float()
+        data_tensor = torch.from_numpy(data).float()
         masks_tensor = torch.from_numpy(masks_np).float()
         freq_tensor = torch.from_numpy(freq).float()
         
