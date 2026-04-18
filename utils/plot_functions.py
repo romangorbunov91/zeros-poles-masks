@@ -120,7 +120,7 @@ def plot_frequency_responses(
     
     
 def plot_responses(
-    dataset_to_plot: Sequence[Tuple[torch.Tensor, torch.Tensor, np.ndarray]],
+    dataset_to_plot: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
     samples_list: List[Any],
     N_plot_samples: int,
     plot_config: Dict[str, Any],
