@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from utils.general_functions import transfer_function, generate_masks, calculate_freq_zeros_poles
+from utils.ZerosPolesDataset import TransformsConfig, GeneralTransforms
 
 config_dir = Path("./config/")
 dataset_dir = Path('./zeros-poles-dataset/')
@@ -46,22 +47,22 @@ if __name__ == "__main__":
         
         magnitude = 20*np.log10(np.abs(gain_complex))
         phase = np.unwrap(np.angle(gain_complex))
+        
+        data = np.vstack([freq.T, magnitude.T, phase.T])
 
-        configer.rng = rng
+        transforms = GeneralTransforms(
+            config=TransformsConfig(
+                gain=configer["gain"],
+                delay=configer["delay"],
+                noise_level=configer["noise_level"],
+                noise_reduce=configer["noise_reduce"]),
+            rng=rng)
         
-        
-        magnitude.T
-        phase.T
-        data = ???(
-            configer=configer,
-            freq=freq,
-            magnitude=magnitude,
-            phase=phase
-            )
+        data = transforms(data)
 
         np.savetxt(
             output_data_dir / f"{key}.csv",
-            data,
+            data.T,
             delimiter=',',
             header='Frequency (Hz), Gain (dB), Phase (rad)',
             comments=''
