@@ -29,10 +29,79 @@ def positions_to_mask(
 
 @dataclass
 class TransformsConfig:
-    gain: List[float] = field(default_factory=lambda: [1.0, 1.0])
-    time_delay: List[float] = field(default_factory=lambda: [0.0, 0.0])
-    noise_level: List[float] = field(default_factory=lambda: [0.0, 0.0])
-    noise_reduce: int = 0
+    diff_transforms: List[bool]=field(default_factory=lambda: [False, False])
+    gain: List[float]=field(default_factory=lambda: [1.0, 1.0])
+    time_delay: List[float]=field(default_factory=lambda: [0.0, 0.0])
+    noise_level: List[float]=field(default_factory=lambda: [0.0, 0.0])
+    noise_reduce: int=0
+    
+
+class FrequencyDomainTransform:
+    def __init__(self,
+            config: Optional[TransformsConfig] = None,
+            rng: Optional[np.random.Generator] = None
+            ):
+        
+        self.config = config
+        
+        if rng is None:
+            self.rng = np.random.default_rng()
+        else:
+            self.rng = rng
+
+    def __call__(self,
+            freq: np.ndarray,
+            magnitude: np.ndarray,
+            phase: np.ndarray
+            ) -> np.ndarray:
+        """
+        Args:
+            freq: 1D float array of frequencies.
+            magnitude: 1D float array of magnitudes.
+            phase: 1D float array of phases.
+        Returns:
+            np.ndarray of shape (2, Length) with dtype float.
+        """
+        rng = self.config.rng
+        
+        gain = self.config.gain
+        delay = self.config.delay
+        noise_level = self.config.noise_level
+        noise_reduce = self.config.noise_reduce
+        diff_transforms = self.config.diff_transforms
+        
+        # Random gain (magnitude only).
+        if any(x != 1.0 for x in gain):
+            magnitude += 20*np.log10(gain[0] + rng.random() * (gain[1] - gain[0]))
+        
+        # Random time-delay (phase only).
+        if max(delay) > 0.0:
+            phase -= 2 * np.pi * freq * (delay[0] + rng.random() * (delay[1] - delay[0]))
+
+        # Random Noise.
+        
+        # Combine before noising.
+        data = np.vstack([magnitude, phase])
+        
+        if max(noise_level) > 0.0:
+            noise = rng.standard_normal(size=data.shape)
+            noise_mask = (rng.random(size=noise.shape) < (0.5 ** noise_reduce)).astype(noise.dtype)
+            data_std = np.std(data, axis=-1, keepdims=True)
+            scale = noise_level[0] + rng.random() * (noise_level[1] - noise_level[0])
+            data += noise * noise_mask * data_std * scale
+        
+        # Calculate differences.      
+        if any(x for x in diff_transforms):
+            data_diff_list = []
+            data_diff = data.copy()
+            for diff_flag in diff_transforms:
+                data_diff = np.gradient(data_diff, axis=1)
+                if diff_flag:
+                    data_diff_list.append(data_diff)
+            return np.vstack([data, data_diff_list])
+        else:
+            return data
+
     
 
 class ZerosPolesDataset(Dataset):
@@ -67,52 +136,18 @@ class ZerosPolesDataset(Dataset):
         
         if rng is None:
             self.rng = np.random.default_rng()
+        else:
+            self.rng = rng
+        
+        if transforms is not None:
+            self.transform = FrequencyDomainTransform(
+                config=self.transforms,
+                rng=self.rng)
+        else:
+            self.transform = None
             
     def __len__(self) -> int:
         return len(self.samples)
-        
-    def _augmentations_(self,
-        freq: np.ndarray,
-        magnitude: np.ndarray,
-        phase: np.ndarray
-        ) -> np.ndarray:
-        
-        """
-        Args:
-            freq: 1D float array of frequencies.
-            magnitude: 1D float array of magnitudes.
-            phase: 1D float array of phases.
-        Returns:
-            np.ndarray of shape (2, Length) with dtype float.
-        """
-        
-        rng = self.rng
-        
-        gain = self.transforms.gain
-        delay = self.transforms.delay
-        noise_level = self.transforms.noise_level
-        noise_reduce = self.transforms.noise_reduce
-
-        # Random gain (magnitude only).
-        if any(x != 1.0 for x in gain):
-            magnitude += 20*np.log10(gain[0] + rng.random() * (gain[1] - gain[0]))
-        
-        # Random time-delay (phase only).
-        if max(delay) > 0.0:
-            phase -= 2 * np.pi * freq * (delay[0] + rng.random() * (delay[1] - delay[0]))
-
-        # Combine before noising.
-        data = np.vstack([magnitude, phase])
-        
-        # Random Noise.
-        if max(noise_level) > 0.0:
-            noise = rng.standard_normal(size=data.shape)
-            noise_mask = (rng.random(size=noise.shape) < (0.5 ** noise_reduce)).astype(noise.dtype)
-            data_std = np.std(data, axis=-1, keepdims=True)
-            scale = noise_level[0] + rng.random() * (noise_level[1] - noise_level[0])
-            data += noise * noise_mask * data_std * scale
-        
-        return data
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
@@ -151,11 +186,10 @@ class ZerosPolesDataset(Dataset):
                 phase=phase
                 )
         
-        data_diff1_np = np.gradient(data_np, axis=1)
-        data_diff2_np = np.gradient(data_diff1_np, axis=1)
+        
         
         # Convert numpy to tensor.
-        data_tensor = torch.from_numpy(np.vstack([data_np, data_diff1_np, data_diff2_np])).float()
+        data_tensor = torch.from_numpy().float()
         masks_tensor = torch.from_numpy(masks_np).float()
         freq_tensor = torch.from_numpy(freq).float()
         
