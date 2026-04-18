@@ -4,7 +4,6 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
-import torch.nn.functional as F
 from dataclasses import dataclass, field
 from typing import Union, Tuple, List, Optional
 
@@ -35,11 +34,11 @@ class TransformsConfig:
     noise_reduce: int=0
 
     def __post_init__(self):
-        if self.gain[0] <= 0 or self.gain[1] <= 0:
+        if any(x <= 0 for x in self.gain):
             raise ValueError("Gain values must be strictly positive for log10 scaling.")
         if self.gain[0] > self.gain[1]:
             raise ValueError("gain[0] must be <= gain[1].")
-        if self.delay[0] < 0 or self.delay[1] < 0:
+        if any(x < 0 for x in self.delay):
             raise ValueError("Delay values can't be negative since "-" is applied inside.")
         if self.delay[0] > self.delay[1]:
             raise ValueError("delay[0] must be <= delay[1].")
@@ -53,7 +52,7 @@ class GeneralTransforms:
             rng: Optional[np.random.Generator] = None
             ):
         
-        self.config = config
+        self.config = config if config is not None else TransformsConfig()
         
         if rng is None:
             self.rng = np.random.default_rng()
@@ -109,9 +108,7 @@ class ConversionTransforms:
         self.num_iter = num_iter
         self.return_input = return_input
 
-    def __call__(self,
-            data: np.ndarray
-            ) -> np.ndarray:
+    def __call__(self, data: np.ndarray) -> np.ndarray:
         
         # Skip frequencies (row=0).
         data_diff = data[1:,:].copy()
@@ -138,9 +135,7 @@ class ZerosPolesDataset(Dataset):
         ):
         
         super().__init__()
-        
-        self.dataset_path = Path(dataset_dir) / split
-        
+                
         mask_path = Path(dataset_dir) / (split + "_masks.json")
         assert mask_path.exists(), f"Mask not found: {mask_path}"
         with open(mask_path, "r") as f:
@@ -148,37 +143,34 @@ class ZerosPolesDataset(Dataset):
         
         self.mask_halfwindow = mask_halfwindow
         
-        # Read all samples.
         if samples is None:
+            # Read all samples.
             self.samples = list(self.masks.keys())
         else:
             self.samples = samples
         
+        # Load full dataset to in-memory cache to avoid repeated np.loadtxt calls.
+        self._sample_cache: dict[str, np.ndarray] = {}
+        dataset_path = Path(dataset_dir) / split
+        for sample_id in self.samples:
+            sample_path = dataset_path / f"{sample_id}.csv"
+            if not sample_path.exists():
+                raise FileNotFoundError(f"File not found: {sample_path}")
+            self._sample_cache[sample_id] = np.loadtxt(sample_path, delimiter=',', skiprows=1).T
+
         if transforms is None:
             self.transforms = []
         else:
             self.transforms = transforms
-        
-        # Simple in-memory cache to avoid repeated np.loadtxt calls.
-        self._sample_cache: dict[str, np.ndarray] = {}
 
     def __len__(self) -> int:
         return len(self.samples)
-    
-    def _load_csv(self, sample_id: str) -> np.ndarray:
-        sample_path = self.dataset_path / f"{sample_id}.csv"
-        if not sample_path.exists():
-            raise FileNotFoundError(f"File not found: {sample_path}")
-
-        return np.loadtxt(sample_path, delimiter=',', skiprows=1).T
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
         sample_id = self.samples[idx]
 
-        # Load & cache sample.
-        if sample_id not in self._sample_cache:
-            self._sample_cache[sample_id] = self._load_csv(sample_id)
+        # Load data from cache.
         data = self._sample_cache[sample_id].copy()
         
         freq = data[0, :]
@@ -197,7 +189,7 @@ class ZerosPolesDataset(Dataset):
                 )
         masks = np.vstack(masks_list)
 
-        # Augmentations and conversion to diff.
+        # Augmentations and conversion to diff-type.
         for t in self.transforms:
             data = t(data)
 
