@@ -48,7 +48,7 @@ if __name__ == "__main__":
         magnitude = 20*np.log10(np.abs(gain_complex))
         phase = np.unwrap(np.angle(gain_complex))
         
-        data = np.vstack([freq.T, magnitude.T, phase.T])
+        data = np.array([freq, magnitude, phase])
 
         transforms = GeneralTransforms(
             config=TransformsConfig(
