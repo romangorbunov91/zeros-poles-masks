@@ -1,6 +1,6 @@
 {
-    "split": "test",
-    "size": 100,
+    "split": "val",
+    "size": 200,
     "clearance_width": 20,
     "seed": null,
     "length": 512,
@@ -8,7 +8,7 @@
     "fmax": [10e3, 10e6],
     "gain": [1.0, 1e4],
     "delay": [0.0, 0.0],
-    "noise_level": [5e-6, 30e-6],
+    "noise_level": [5e-3, 30e-3],
     "noise_reduce": 2,
     "Nzp_max": 1,
     "Nlp_max": 2,
