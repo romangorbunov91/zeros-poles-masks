@@ -7,7 +7,7 @@
     "fmin": [1.0, 5e3],
     "fmax": [10e3, 10e6],
     "gain": [1.0, 1e4],
-    "delay": [0.0, 0.0],
+    "phase_delay": [0.0, 0.0],
     "noise_level": [5e-3, 30e-3],
     "noise_reduce": 2,
     "Nzp_max": 1,
