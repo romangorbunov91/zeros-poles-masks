@@ -53,7 +53,7 @@ if __name__ == "__main__":
         transforms = GeneralTransforms(
             config=TransformsConfig(
                 gain=configer["gain"],
-                delay=configer["delay"],
+                phase_delay=configer["phase_delay"],
                 noise_level=configer["noise_level"],
                 noise_reduce=configer["noise_reduce"]),
             rng=rng)
