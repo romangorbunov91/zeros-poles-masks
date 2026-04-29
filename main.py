@@ -46,7 +46,7 @@ if __name__ == "__main__":
             )
         
         magnitude = 20*np.log10(np.abs(gain_complex))
-        phase = np.unwrap(np.angle(gain_complex))
+        phase = 180 / np.pi * np.unwrap(np.angle(gain_complex))
         
         data = np.array([freq, magnitude, phase])
 
@@ -64,6 +64,6 @@ if __name__ == "__main__":
             output_data_dir / f"{key}.csv",
             data.T,
             delimiter=',',
-            header='Frequency (Hz), Gain (dB), Phase (rad)',
+            header='Frequency (Hz), Gain (dB), Phase (deg)',
             comments=''
             )
