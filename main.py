@@ -55,8 +55,7 @@ if __name__ == "__main__":
                 gain=configer["gain"],
                 phase_delay=configer["phase_delay"],
                 noise_level=configer["noise_level"],
-                noise_reduce=configer["noise_reduce"]),
-            rng=rng)
+                noise_reduce=configer["noise_reduce"]))
         
         data = transforms(data)
 
