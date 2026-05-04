@@ -5,18 +5,18 @@
 - Gain (dB),
 - Phase (deg).
 
-Модель обобщенного линейного звена:
+Модель обобщенного линейного динамического звена:
 
 $$\begin{equation}
-    H(s) = G \frac{\prod\limits_{m=1}^{M} \left(1 + \frac{s}{\omega_{z(m)}} \right)}{s^K \prod\limits_{n=1}^{N} \left(1 + \frac{s}{\omega_{p(n)}}\right)} e^{-s t_\text{delay}},
+    H(s) = G \frac{\prod\limits_{m=1}^{M} \left(1 + \frac{s}{\omega_{\text{z}(m)}} \right)}{s^K \prod\limits_{n=1}^{N} \left(1 + \frac{s}{\omega_{\text{p}(n)}}\right)} e^{-s t_\text{delay}},
 \end{equation}$$
 
 где
 - ${G}$ - пропорциональный коэффициент,
 - ${t_\text{delay}}$ - задержка времени (${t_\text{delay}>0}$),
-- ${K}$ - количество интеграторов,
-- ${\omega_{z(m)} \in \{\omega_{z(1)}, \omega_{z(2)}, ..., \omega_{z(M)}\}}$ - частоты нулей передаточной функции ${H(s)}$ в количестве ${M}$,
-- ${\omega_{p(n)} \in \{\omega_{p(1)}, \omega_{p(2)}, ..., \omega_{p(N)}\}}$ - частоты полюсов передаточной функции ${H(s)}$ в количестве ${N}$.
+- ${K \in \mathbb{N}}$ - количество интеграторов,
+- ${\omega_{\text{z}(m)} \in \{\omega_{\text{z}(1)}, \omega_{\text{z}(2)}, ..., \omega_{\text{z}(M)}\}}$ - частоты нулей передаточной функции ${H(s)}$ в количестве ${M}$,
+- ${\omega_{\text{p}(n)} \in \{\omega_{\text{p}(1)}, \omega_{\text{p}(2)}, ..., \omega_{\text{p}(N)}\}}$ - частоты полюсов передаточной функции ${H(s)}$ в количестве ${N}$.
 
 В [general_functions.py](utils/general_functions.py) представлены функции:
 - `transfer_function` - вычисление массива комплексного коэффициента передачи,
